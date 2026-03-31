@@ -1,0 +1,152 @@
+use anyhow::{Context, Result};
+use ini_preserve::Ini;
+use std::path::{Path, PathBuf};
+
+fn default_ini_path() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".local/share/VPinballX/10.8/VPinballX.ini")
+}
+
+pub struct VpxConfig {
+    path: PathBuf,
+    ini: Ini,
+}
+
+impl VpxConfig {
+    pub fn load(path: Option<&Path>) -> Result<Self> {
+        let path = path.map(PathBuf::from).unwrap_or_else(default_ini_path);
+
+        let ini = if path.exists() {
+            Ini::load(&path).map_err(|e| anyhow::anyhow!("{e}"))?
+        } else {
+            Ini::new()
+        };
+
+        Ok(Self { path, ini })
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let content = self.ini.to_string();
+        let line_count = content.split('\n').count();
+        log::info!("Saving ini: {} bytes, {} lines to {}", content.len(), line_count, self.path.display());
+        self.ini.save(&self.path).map_err(|e| anyhow::anyhow!("{e}"))
+    }
+
+    pub fn get(&self, section: &str, key: &str) -> Option<String> {
+        self.ini.get(section, key).map(|s| s.to_string())
+    }
+
+    pub fn set(&mut self, section: &str, key: &str, value: &str) {
+        self.ini.set(section, key, value);
+    }
+
+    pub fn get_i32(&self, section: &str, key: &str) -> Option<i32> {
+        self.get(section, key)?.parse().ok()
+    }
+
+    pub fn get_f32(&self, section: &str, key: &str) -> Option<f32> {
+        self.get(section, key)?.parse().ok()
+    }
+
+    pub fn set_i32(&mut self, section: &str, key: &str, value: i32) {
+        self.set(section, key, &value.to_string());
+    }
+
+    pub fn set_f32(&mut self, section: &str, key: &str, value: f32) {
+        self.set(section, key, &format!("{value}"));
+    }
+
+    // --- Screen configuration ---
+
+    pub fn set_playfield_display(&mut self, name: &str, _x: i32, _y: i32, w: i32, h: i32) {
+        self.set("Player", "PlayfieldDisplay", name);
+        self.set("Player", "PlayfieldWndX", "");
+        self.set("Player", "PlayfieldWndY", "");
+        self.set_i32("Player", "PlayfieldWidth", w);
+        self.set_i32("Player", "PlayfieldHeight", h);
+    }
+
+    pub fn set_backglass_display(&mut self, name: &str, _x: i32, _y: i32, w: i32, h: i32) {
+        self.set_i32("Backglass", "BackglassOutput", 1);
+        self.set("Backglass", "BackglassDisplay", name);
+        self.set("Backglass", "BackglassWndX", "");
+        self.set("Backglass", "BackglassWndY", "");
+        self.set_i32("Backglass", "BackglassWidth", w);
+        self.set_i32("Backglass", "BackglassHeight", h);
+    }
+
+    pub fn set_dmd_display(&mut self, name: &str, _x: i32, _y: i32, w: i32, h: i32) {
+        self.set_i32("ScoreView", "ScoreViewOutput", 1);
+        self.set("ScoreView", "ScoreViewDisplay", name);
+        self.set("ScoreView", "ScoreViewWndX", "");
+        self.set("ScoreView", "ScoreViewWndY", "");
+        self.set_i32("ScoreView", "ScoreViewWidth", w);
+        self.set_i32("ScoreView", "ScoreViewHeight", h);
+    }
+
+    pub fn set_topper_display(&mut self, name: &str, _x: i32, _y: i32, w: i32, h: i32) {
+        self.set_i32("Topper", "TopperOutput", 1);
+        self.set("Topper", "TopperDisplay", name);
+        self.set("Topper", "TopperWndX", "");
+        self.set("Topper", "TopperWndY", "");
+        self.set_i32("Topper", "TopperWidth", w);
+        self.set_i32("Topper", "TopperHeight", h);
+    }
+
+    pub fn set_view_mode(&mut self, mode: i32) {
+        self.set_i32("Player", "BGSet", mode);
+    }
+
+    // --- Input mapping ---
+
+    pub fn set_input_mapping(&mut self, action_id: &str, mapping: &str) {
+        let key = format!("Mapping.{action_id}");
+        self.set("Input", &key, mapping);
+    }
+
+    pub fn get_input_mapping(&self, action_id: &str) -> Option<String> {
+        let key = format!("Mapping.{action_id}");
+        self.get("Input", &key)
+    }
+
+    // --- Tilt / Nudge ---
+
+    pub fn set_nudge_strength(&mut self, value: f32) {
+        self.set_f32("Player", "NudgeStrength", value);
+    }
+
+    pub fn set_plumb_inertia(&mut self, value: f32) {
+        self.set_f32("Player", "PlumbInertia", value);
+    }
+
+    pub fn set_plumb_threshold_angle(&mut self, value: f32) {
+        self.set_f32("Player", "PlumbThresholdAngle", value);
+    }
+
+    pub fn set_nudge_filter(&mut self, sensor: u8, enabled: bool) {
+        let key = format!("NudgeFilter{sensor}");
+        self.set_i32("Player", &key, if enabled { 1 } else { 0 });
+    }
+
+    // --- Audio ---
+
+    pub fn set_sound_device_bg(&mut self, device: &str) {
+        self.set("Player", "SoundDeviceBG", device);
+    }
+
+    pub fn set_sound_device_pf(&mut self, device: &str) {
+        self.set("Player", "SoundDevice", device);
+    }
+
+    pub fn set_sound_3d_mode(&mut self, mode: i32) {
+        self.set_i32("Player", "Sound3D", mode);
+    }
+
+    pub fn set_music_volume(&mut self, volume: i32) {
+        self.set_i32("Player", "MusicVolume", volume);
+    }
+
+    pub fn set_sound_volume(&mut self, volume: i32) {
+        self.set_i32("Player", "SoundVolume", volume);
+    }
+}

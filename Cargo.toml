@@ -1,0 +1,49 @@
+[package]
+name = "pinready"
+version = "0.1.0"
+edition = "2021"
+description = "Cross-platform configurator and launcher for VPinballX standalone"
+
+[dependencies]
+# UI
+eframe = "0.34"
+egui = "0.34"
+egui_extras = { version = "0.34", features = ["image"] }
+
+# Display / Input
+sdl3-sys = { version = "0.6", features = ["build-from-source-static"] }
+display-info = "0.5"
+
+# Config
+serde = { version = "1", features = ["derive"] }
+ini-preserve = "0.1.1"
+
+# Database
+rusqlite = { version = "0.39", features = ["bundled"] }
+
+# File dialog
+rfd = "0.15"
+
+# File scan
+walkdir = "2.5"
+
+# Images
+image = { version = "0.25", features = ["png", "jpeg"] }
+
+# Audio decoding (OGG Vorbis → PCM for SDL3)
+symphonia = { version = "0.5", default-features = false, features = ["ogg", "vorbis"] }
+
+# Threading
+crossbeam-channel = "0.5"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Error handling
+anyhow = "1"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
