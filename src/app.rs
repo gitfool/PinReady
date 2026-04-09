@@ -7,6 +7,21 @@ use crate::inputs::{self, CapturedInput, InputAction, JoystickEvent};
 use crate::screens::{self, DisplayInfo, DisplayRole};
 use crate::tilt::TiltConfig;
 
+/// Application mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppMode {
+    Wizard,
+    Launcher,
+}
+
+/// A discovered table
+#[derive(Debug, Clone)]
+pub struct TableEntry {
+    pub path: std::path::PathBuf,
+    pub name: String,
+    pub has_directb2s: bool,
+}
+
 /// Wizard pages
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WizardPage {
@@ -67,6 +82,7 @@ enum CaptureState {
 }
 
 pub struct App {
+    mode: AppMode,
     page: WizardPage,
     config: VpxConfig,
     db: Database,
@@ -84,6 +100,7 @@ pub struct App {
     player_x: f32,            // Player X offset from center in cm
     player_y: f32,            // Player Y distance from lockbar in cm (negative = behind)
     player_z: f32,            // Player Z height (eyes) from playfield in cm
+    player_height: f32,       // Player total height in cm (used to compute Z)
 
     // Page 2 — Rendering
     aa_factor: f32,        // Supersampling 0.5–2.0 (default 1.0)
@@ -104,6 +121,9 @@ pub struct App {
     capture_state: CaptureState,
     show_advanced_inputs: bool,
     joystick_rx: Option<crossbeam_channel::Receiver<JoystickEvent>>,
+    pinscape_id: Option<String>,  // VPX device ID if Pinscape detected
+    gamepad_id: Option<String>,   // VPX device ID if generic gamepad detected
+    use_gamepad: bool,            // User toggle: use gamepad axes for flippers/nudge/plunger
 
     // Page 3 — Tilt
     tilt: TiltConfig,
@@ -119,12 +139,16 @@ pub struct App {
     #[allow(dead_code)]
     assets_dir: String,
 
+    // Launcher
+    tables: Vec<TableEntry>,
+    table_filter: String,
+
     // Quit timer (set after finalize_wizard)
     quit_after_ms: Option<std::time::Instant>,
 }
 
 impl App {
-    pub fn new(config: VpxConfig, db: Database) -> Self {
+    pub fn new(config: VpxConfig, db: Database, start_in_wizard: bool) -> Self {
         // Enumerate displays
         let displays = screens::enumerate_displays();
         let screen_count = displays.len().min(4);
@@ -140,6 +164,8 @@ impl App {
         let player_x = config.get_f32("Player", "ScreenPlayerX").unwrap_or(0.0);
         let player_y = config.get_f32("Player", "ScreenPlayerY").unwrap_or(-10.0);
         let player_z = config.get_f32("Player", "ScreenPlayerZ").unwrap_or(70.0);
+        // Reverse-compute player height from Z + lockbar_height + 12cm (eyes-to-top-of-head)
+        let player_height = player_z + lockbar_height + 12.0;
 
         // Load rendering config (pre-fill from ini)
         let aa_factor = config.get_f32("Player", "AAFactor").unwrap_or(1.0);
@@ -148,7 +174,7 @@ impl App {
         let sharpen = config.get_i32("Player", "Sharpen").unwrap_or(0);
         let pf_reflection = config.get_i32("Player", "PFReflection").unwrap_or(5);
         let max_tex_dim = config.get_i32("Player", "MaxTexDimension").unwrap_or(16384);
-        let sync_mode = config.get_i32("Player", "SyncMode").unwrap_or(1);
+        let sync_mode = config.get_i32("Player", "SyncMode").unwrap_or(0);
         let max_framerate = config.get_f32("Player", "MaxFramerate").unwrap_or(-1.0);
 
         // Load input actions with defaults
@@ -157,14 +183,31 @@ impl App {
         log::info!("Loading input mappings from ini...");
         for action in &mut actions {
             if let Some(mapping_str) = config.get_input_mapping(action.setting_id) {
+                if mapping_str.is_empty() {
+                    continue;
+                }
                 log::info!("  {} = {}", action.setting_id, mapping_str);
-                // Parse simple keyboard mapping: "Key;<scancode>"
-                if let Some(sc_str) = mapping_str.strip_prefix("Key;") {
-                    if let Ok(sc_val) = sc_str.split('|').next().unwrap_or("").split('&').next().unwrap_or("").trim().parse::<i32>() {
+                // Take first alternative (before |), first combo part (before &)
+                let first = mapping_str.split('|').next().unwrap_or("").split('&').next().unwrap_or("").trim();
+                if let Some(sc_str) = first.strip_prefix("Key;") {
+                    // Keyboard mapping: "Key;<scancode>"
+                    if let Ok(sc_val) = sc_str.parse::<i32>() {
                         let scancode = sdl3_sys::everything::SDL_Scancode(sc_val);
                         action.mapping = Some(CapturedInput::Keyboard {
                             scancode,
                             name: inputs::scancode_name(scancode),
+                        });
+                    }
+                } else if let Some(pos) = first.find(';') {
+                    // Joystick mapping: "SDLJoy_<id>;<button>[;extra_params...]"
+                    let device_id = first[..pos].to_string();
+                    let rest = &first[pos + 1..];
+                    // Button ID is the first number after the semicolon
+                    if let Ok(button) = rest.split(';').next().unwrap_or("").parse::<u8>() {
+                        action.mapping = Some(CapturedInput::JoystickButton {
+                            device_id: device_id.clone(),
+                            button,
+                            name: format!("{} Button {}", device_id, button),
                         });
                     }
                 }
@@ -208,7 +251,8 @@ impl App {
         let audio_stream = audio::open_audio_stream();
         let audio_cmd_tx = audio::spawn_audio_thread(audio_stream, assets_dir.clone());
 
-        Self {
+        let mut s = Self {
+            mode: if start_in_wizard { AppMode::Wizard } else { AppMode::Launcher },
             page: WizardPage::Screens,
             config,
             db,
@@ -222,6 +266,7 @@ impl App {
             player_x,
             player_y,
             player_z,
+            player_height,
             actions,
             accel_x: 0.0,
             accel_y: 0.0,
@@ -236,13 +281,23 @@ impl App {
             capture_state: CaptureState::Idle,
             show_advanced_inputs: false,
             joystick_rx: Some(joystick_rx),
+            pinscape_id: None,
+            gamepad_id: None,
+            use_gamepad: false,
             tilt,
             audio,
             audio_cmd_tx: Some(audio_cmd_tx),
             tables_dir,
             assets_dir,
+            tables: Vec::new(),
+            table_filter: String::new(),
             quit_after_ms: None,
+        };
+        // Pre-scan tables if starting in launcher mode
+        if !start_in_wizard {
+            s.scan_tables();
         }
+        s
     }
 
     fn next_page(&mut self) {
@@ -257,6 +312,46 @@ impl App {
         if self.page.index() > 0 {
             if let Some(page) = WizardPage::from_index(self.page.index() - 1) {
                 self.page = page;
+            }
+        }
+    }
+
+    fn reset_current_page(&mut self) {
+        match self.page {
+            WizardPage::Screens => {
+                self.view_mode = if self.screen_count >= 2 { 1 } else { 0 };
+                self.screen_inclination = 0.0;
+                self.lockbar_width = 70.0;
+                self.lockbar_height = 85.0;
+                self.player_x = 0.0;
+                self.player_y = -10.0;
+                self.player_height = 167.0;
+                self.player_z = (self.player_height - 12.0 - self.lockbar_height).max(0.0);
+            }
+            WizardPage::Rendering => {
+                self.aa_factor = 1.0;
+                self.msaa = 0;
+                self.fxaa = 0;
+                self.sharpen = 0;
+                self.pf_reflection = 5;
+                self.max_tex_dim = 16384;
+                self.sync_mode = 0;
+                self.max_framerate = -1.0;
+            }
+            WizardPage::Inputs => {
+                self.actions = crate::inputs::default_actions();
+                self.capture_state = CaptureState::Idle;
+                self.use_gamepad = false;
+            }
+            WizardPage::Tilt => {
+                self.tilt = TiltConfig::default();
+            }
+            WizardPage::Audio => {
+                self.audio = AudioConfig::default();
+                self.audio.available_devices = AudioConfig::enumerate_devices();
+            }
+            WizardPage::TablesDir => {
+                self.tables_dir = String::new();
             }
         }
     }
@@ -301,9 +396,17 @@ impl App {
             self.config.set_i32("Plugin.B2SLegacy", "ScoreViewDMDOverlay", 1);
             self.config.set_i32("Plugin.B2SLegacy", "ScoreViewDMDAutoPos", 1);
             self.config.set_i32("Plugin.B2SLegacy", "BackglassDMDOverlay", 0);
+            // B2SLegacyDMD must win over ScoreView to keep the B2S frame around the DMD
+            self.config.set_i32("ScoreView", "Priority.B2SLegacyDMD", 10);
+            self.config.set_i32("ScoreView", "Priority.ScoreView", 1);
         }
         if !has_topper {
             self.config.set_i32("Topper", "TopperOutput", 0); // Disabled
+        }
+
+        // PlayfieldFullScreen is required for correct multi-screen positioning
+        if self.screen_count >= 2 {
+            self.config.set_i32("Player", "PlayfieldFullScreen", 1);
         }
 
         let placements = screens::compute_placement(&self.displays);
@@ -312,6 +415,9 @@ impl App {
             match display.role {
                 DisplayRole::Playfield => {
                     self.config.set_playfield_display(&display.name, px, py, display.width, display.height);
+                    // Write exact refresh rate — VPX crashes if value doesn't match exactly
+                    self.config.set_f32("Player", "PlayfieldRefreshRate", display.refresh_rate);
+                    self.config.set_f32("Player", "MaxFramerate", display.refresh_rate);
                     // Physical screen size in cm for Window projection (mm -> cm, width > height)
                     let w_cm = display.width_mm as f32 / 10.0;
                     let h_cm = display.height_mm as f32 / 10.0;
@@ -363,6 +469,60 @@ impl App {
     }
 
     fn save_inputs(&mut self) {
+        // Collect all unique device IDs used in mappings
+        let mut device_ids: Vec<String> = Vec::new();
+        let mut has_keyboard = false;
+        for action in &self.actions {
+            match &action.mapping {
+                Some(CapturedInput::Keyboard { .. }) => has_keyboard = true,
+                Some(CapturedInput::JoystickButton { device_id, .. })
+                | Some(CapturedInput::JoystickAxis { device_id, .. }) => {
+                    if !device_ids.contains(device_id) {
+                        device_ids.push(device_id.clone());
+                    }
+                }
+                None => has_keyboard = true, // defaults are keyboard
+            }
+        }
+
+        // If Pinscape detected, write device declaration + analog mappings
+        // This replaces VPX's "Apply Device Layout?" dialog
+        if let Some(psc_id) = &self.pinscape_id {
+            let psc_id = psc_id.clone();
+            self.config.set("Input", "Devices", "");
+            self.config.set("Input", "Device.Key.Type", "");
+            self.config.set("Input", "Device.Key.NoAutoLayout", "");
+            self.config.set("Input", "Device.Key.Name", "");
+            self.config.set("Input", "Device.Mouse.Type", "");
+            self.config.set("Input", "Device.Mouse.NoAutoLayout", "");
+            self.config.set("Input", &format!("Device.{psc_id}.Type"), "");
+            self.config.set("Input", &format!("Device.{psc_id}.NoAutoLayout"), "1");
+            self.config.set("Input", &format!("Device.{psc_id}.Name"), "");
+            // Plunger: axis 0x0202=514, Position mode
+            self.config.set("Input", "Mapping.PlungerPos",
+                &format!("{psc_id};514;P;0.000000;1.000000;1.000000"));
+            // Nudge: axes 0x0200=512 / 0x0201=513, Acceleration mode
+            self.config.set("Input", "Mapping.NudgeX1",
+                &format!("{psc_id};512;A;0.100000;{:.6};1.000000", self.tilt.nudge_scale));
+            self.config.set("Input", "Mapping.NudgeY1",
+                &format!("{psc_id};513;A;0.100000;{:.6};1.000000", self.tilt.nudge_scale));
+        }
+
+        // If gamepad detected, control whether VPX should auto-configure it
+        if let Some(gp_id) = &self.gamepad_id {
+            let gp_id = gp_id.clone();
+            self.config.set("Input", &format!("Device.{gp_id}.Type"), "");
+            self.config.set("Input", &format!("Device.{gp_id}.Name"), "");
+            if self.use_gamepad {
+                // NoAutoLayout absent or 0 → VPX will propose its gamepad layout on first launch
+                self.config.set("Input", &format!("Device.{gp_id}.NoAutoLayout"), "");
+            } else {
+                // NoAutoLayout = 1 → VPX won't ask to apply gamepad layout
+                self.config.set("Input", &format!("Device.{gp_id}.NoAutoLayout"), "1");
+            }
+        }
+
+        // Write digital mappings
         for action in &self.actions {
             let mapping = match &action.mapping {
                 Some(captured) => captured.to_mapping_string(),
@@ -424,8 +584,116 @@ impl App {
 
         log::info!("Wizard completed! Config saved to VPinballX.ini");
 
-        // Set flag to quit after knocker plays
-        self.quit_after_ms = Some(std::time::Instant::now());
+        // Scan tables and switch to launcher mode
+        self.scan_tables();
+        self.mode = AppMode::Launcher;
+    }
+
+    fn scan_tables(&mut self) {
+        self.tables.clear();
+        let dir = if self.tables_dir.is_empty() { return } else { &self.tables_dir };
+        let dir_path = std::path::Path::new(dir);
+        if !dir_path.is_dir() {
+            log::warn!("Tables directory does not exist: {}", dir);
+            return;
+        }
+        // Scan for .vpx files (folder-per-table layout: each subfolder has a .vpx)
+        if let Ok(entries) = std::fs::read_dir(dir_path) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_dir() { continue; }
+                // Look for .vpx file inside this folder
+                if let Ok(files) = std::fs::read_dir(&path) {
+                    for file in files.flatten() {
+                        let fp = file.path();
+                        if fp.extension().and_then(|e| e.to_str()) == Some("vpx") {
+                            let name = path.file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .replace('_', " ");
+                            let has_directb2s = path.join(
+                                fp.file_stem().unwrap_or_default()
+                            ).with_extension("directb2s").exists();
+                            self.tables.push(TableEntry {
+                                path: fp,
+                                name,
+                                has_directb2s,
+                            });
+                            break; // one vpx per folder
+                        }
+                    }
+                }
+            }
+        }
+        self.tables.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        log::info!("Scanned {} tables in {}", self.tables.len(), dir);
+    }
+
+    fn launch_table(&self, table: &TableEntry) {
+        let vpx_exe = "/home/pincab/VPinballX/VPinballX_BGFX";
+        log::info!("Launching: {} -Play {}", vpx_exe, table.path.display());
+        match std::process::Command::new(vpx_exe)
+            .arg("-Play")
+            .arg(&table.path)
+            .spawn()
+        {
+            Ok(_) => log::info!("VPinballX launched"),
+            Err(e) => log::error!("Failed to launch VPinballX: {e}"),
+        }
+    }
+
+    fn render_launcher(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.heading("PinReady — Lanceur de tables");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("Configuration").clicked() {
+                    self.mode = AppMode::Wizard;
+                }
+                if ui.button("Rescanner").clicked() {
+                    self.scan_tables();
+                }
+            });
+        });
+        ui.add_space(8.0);
+
+        // Search filter
+        ui.horizontal(|ui| {
+            ui.label("Rechercher :");
+            ui.text_edit_singleline(&mut self.table_filter);
+            ui.label(format!("{} table(s)", self.tables.len()));
+        });
+        ui.add_space(8.0);
+
+        if self.tables.is_empty() {
+            ui.label("Aucune table trouvee. Verifiez le repertoire des tables dans la configuration.");
+            return;
+        }
+
+        // Table list
+        let filter = self.table_filter.to_lowercase();
+        let mut launch_idx: Option<usize> = None;
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for (idx, table) in self.tables.iter().enumerate() {
+                if !filter.is_empty() && !table.name.to_lowercase().contains(&filter) {
+                    continue;
+                }
+                ui.horizontal(|ui| {
+                    if ui.button("Jouer").clicked() {
+                        launch_idx = Some(idx);
+                    }
+                    ui.label(&table.name);
+                    if table.has_directb2s {
+                        ui.colored_label(egui::Color32::from_rgb(100, 180, 100), "B2S");
+                    }
+                });
+            }
+        });
+
+        if let Some(idx) = launch_idx {
+            let table = self.tables[idx].clone();
+            self.launch_table(&table);
+        }
     }
 
     // --- Page rendering ---
@@ -536,44 +804,257 @@ impl App {
                 }
             });
 
-        ui.add_space(16.0);
-        ui.strong("Dimensions physiques du cabinet (pour la projection 3D)");
-        ui.add_space(4.0);
-        ui.label("Ces mesures permettent a VPX de calculer la perspective comme si vous regardiez un vrai flipper.");
-        ui.add_space(8.0);
+        // Only show cabinet dimensions in Cabinet mode
+        if self.view_mode == 1 {
+            ui.add_space(16.0);
+            ui.strong("Dimensions physiques du cabinet (pour la projection 3D)");
+            ui.add_space(4.0);
+            ui.label("Deplacez les poignees sur le schema ou modifiez les valeurs a droite.");
+            ui.add_space(8.0);
 
-        ui.label("Repere : l'origine est au centre du bord bas du playfield (cote lockbar/joueur).");
-        ui.label("X = gauche/droite, Y = avant/arriere, Z = haut/bas.");
-        ui.add_space(8.0);
+            // Layout: schema on the left, values on the right
+            ui.horizontal(|ui| {
+                // === Interactive cabinet schema (side view) ===
+                let schema_size = egui::vec2(450.0, 500.0);
+                let (rect, response) = ui.allocate_exact_size(schema_size, egui::Sense::click_and_drag());
+                let painter = ui.painter_at(rect);
 
-        egui::Grid::new("cabinet_dims")
-            .min_col_width(350.0)
-            .striped(true)
-            .show(ui, |ui| {
-                ui.label("Inclinaison du playfield (0 = a plat, positif = releve cote backglass) :");
-                ui.add(egui::Slider::new(&mut self.screen_inclination, -30.0..=30.0).suffix(" deg"));
-                ui.end_row();
+                // Scale: 1cm = 2.0px
+                let scale = 2.0_f32;
+                // Ground line at bottom of the schema
+                let ground_y = rect.bottom() - 25.0;
+                // Cabinet front (lockbar) X position
+                let cab_x = rect.left() + 220.0;
 
-                ui.label("Largeur de la lockbar (barre metallique en facade du cab, en cm) :");
-                ui.add(egui::Slider::new(&mut self.lockbar_width, 10.0..=150.0).suffix(" cm"));
-                ui.end_row();
+                // Colors
+                let col_cab = egui::Color32::from_rgb(120, 80, 50); // brown cabinet
+                let col_screen = egui::Color32::from_rgb(60, 120, 200); // blue screen
+                let col_player = egui::Color32::from_rgb(80, 180, 80); // green player
+                let col_dim = egui::Color32::from_rgb(200, 60, 60); // red dimensions
+                let col_ground = egui::Color32::GRAY;
+                let col_handle = egui::Color32::from_rgb(255, 200, 0); // yellow handles
 
-                ui.label("Hauteur de la lockbar par rapport au sol (en cm) :");
-                ui.add(egui::Slider::new(&mut self.lockbar_height, 0.0..=250.0).suffix(" cm"));
-                ui.end_row();
+                // Ground
+                painter.line_segment(
+                    [egui::pos2(rect.left() + 10.0, ground_y), egui::pos2(rect.right() - 10.0, ground_y)],
+                    egui::Stroke::new(2.0, col_ground),
+                );
+                painter.text(egui::pos2(rect.right() - 30.0, ground_y + 8.0), egui::Align2::CENTER_CENTER,
+                    "Sol", egui::FontId::proportional(10.0), col_ground);
 
-                ui.label("Position du joueur X (0 = centre, negatif = gauche, positif = droite) :");
-                ui.add(egui::Slider::new(&mut self.player_x, -30.0..=30.0).suffix(" cm"));
-                ui.end_row();
+                // Cabinet body (side view: front=lockbar side, back=backglass side)
+                let lockbar_y = ground_y - self.lockbar_height * scale;
+                let font_label = egui::FontId::proportional(12.0);
+                let font_dim = egui::FontId::proportional(11.0);
 
-                ui.label("Position du joueur Y (distance ventre-lockbar, negatif = en retrait) :");
-                ui.add(egui::Slider::new(&mut self.player_y, -70.0..=30.0).suffix(" cm"));
-                ui.end_row();
+                // Screen (inclined from lockbar toward backglass)
+                let screen_len_px = 150.0;
+                let incl_rad = self.screen_inclination.to_radians();
+                let screen_end_x = cab_x + screen_len_px * incl_rad.cos();
+                let screen_end_y = lockbar_y - screen_len_px * incl_rad.sin();
 
-                ui.label("Position du joueur Z (hauteur des yeux au dessus du bord bas du playfield) :");
-                ui.add(egui::Slider::new(&mut self.player_z, 30.0..=100.0).suffix(" cm"));
-                ui.end_row();
+                // Cabinet legs: front leg under lockbar, back leg under screen end
+                let front_leg_x = cab_x;
+                let back_leg_x = screen_end_x;
+                painter.line_segment(
+                    [egui::pos2(front_leg_x, ground_y), egui::pos2(front_leg_x, lockbar_y)],
+                    egui::Stroke::new(3.0, col_cab),
+                );
+                painter.line_segment(
+                    [egui::pos2(back_leg_x, ground_y), egui::pos2(back_leg_x, screen_end_y)],
+                    egui::Stroke::new(3.0, col_cab),
+                );
+
+                // Lockbar (horizontal bar at front)
+                painter.line_segment(
+                    [egui::pos2(cab_x - 15.0, lockbar_y), egui::pos2(cab_x + 15.0, lockbar_y)],
+                    egui::Stroke::new(5.0, col_cab),
+                );
+                painter.text(egui::pos2(cab_x, lockbar_y + 12.0), egui::Align2::CENTER_TOP,
+                    "Lockbar", font_label.clone(), col_cab);
+
+                // Playfield screen (on top of the cab frame)
+                painter.line_segment(
+                    [egui::pos2(cab_x, lockbar_y), egui::pos2(screen_end_x, screen_end_y)],
+                    egui::Stroke::new(6.0, col_screen),
+                );
+                painter.text(egui::pos2((cab_x + screen_end_x) / 2.0, (lockbar_y + screen_end_y) / 2.0 - 14.0),
+                    egui::Align2::CENTER_CENTER, "Playfield", font_label.clone(), col_screen);
+
+                // Backglass (vertical from end of screen)
+                let bg_height = 80.0;
+                painter.line_segment(
+                    [egui::pos2(screen_end_x, screen_end_y), egui::pos2(screen_end_x, screen_end_y - bg_height)],
+                    egui::Stroke::new(4.0, col_screen.linear_multiply(0.6)),
+                );
+                painter.text(egui::pos2(screen_end_x + 8.0, screen_end_y - bg_height / 2.0),
+                    egui::Align2::LEFT_CENTER, "BG", font_label.clone(), col_screen);
+
+                // Player (stick figure, side view — facing right toward cabinet)
+                let player_base_x = cab_x - (-self.player_y) * scale;
+                let player_feet_y = ground_y;
+                let player_head_y = ground_y - self.player_height * scale;
+                let player_hip_y = ground_y - self.player_height * scale * 0.45;
+                let player_shoulder_y = ground_y - self.player_height * scale * 0.72;
+                let player_neck_y = ground_y - self.player_height * scale * 0.82;
+                let head_radius = 10.0;
+                let head_center_y = player_head_y + head_radius;
+                let leg_spread = 14.0; // feet spread front/back for side view
+                let stroke = egui::Stroke::new(3.0, col_player);
+
+                // Legs (spread front/back, side view)
+                let front_foot_x = player_base_x + leg_spread;
+                let back_foot_x = player_base_x - leg_spread;
+                // Front leg
+                painter.line_segment(
+                    [egui::pos2(front_foot_x, player_feet_y), egui::pos2(player_base_x + 2.0, player_hip_y)],
+                    stroke,
+                );
+                // Back leg
+                painter.line_segment(
+                    [egui::pos2(back_foot_x, player_feet_y), egui::pos2(player_base_x - 2.0, player_hip_y)],
+                    stroke,
+                );
+                // Torso (hip to neck, slight lean forward)
+                painter.line_segment(
+                    [egui::pos2(player_base_x, player_hip_y), egui::pos2(player_base_x + 3.0, player_neck_y)],
+                    stroke,
+                );
+                // Head
+                painter.circle_filled(egui::pos2(player_base_x + 3.0, head_center_y), head_radius, col_player);
+                // Eye (facing right toward cab)
+                painter.circle_filled(egui::pos2(player_base_x + 7.0, head_center_y - 2.0), 2.0, egui::Color32::WHITE);
+                // Arms (reaching toward lockbar)
+                let hand_x = player_base_x + 20.0; // hands forward toward cab
+                let hand_y = player_shoulder_y + 15.0; // hands at lockbar height-ish
+                painter.line_segment(
+                    [egui::pos2(player_base_x + 3.0, player_shoulder_y), egui::pos2(hand_x, hand_y)],
+                    stroke,
+                );
+
+                // === Dimension arrows ===
+
+                // Lockbar height (sol -> lockbar)
+                let arrow_x = cab_x + 50.0;
+                painter.line_segment(
+                    [egui::pos2(arrow_x, ground_y), egui::pos2(arrow_x, lockbar_y)],
+                    egui::Stroke::new(1.5, col_dim),
+                );
+                painter.text(egui::pos2(arrow_x + 5.0, (ground_y + lockbar_y) / 2.0),
+                    egui::Align2::LEFT_CENTER, &format!("{:.0} cm", self.lockbar_height),
+                    font_dim.clone(), col_dim);
+
+                // Player height
+                let parrow_x = player_base_x - 25.0;
+                painter.line_segment(
+                    [egui::pos2(parrow_x, player_feet_y), egui::pos2(parrow_x, player_head_y)],
+                    egui::Stroke::new(1.5, col_player),
+                );
+                painter.text(egui::pos2(parrow_x - 5.0, (player_feet_y + player_head_y) / 2.0),
+                    egui::Align2::RIGHT_CENTER, &format!("{:.0} cm", self.player_height),
+                    font_dim.clone(), col_player);
+
+                // Player Y distance
+                painter.line_segment(
+                    [egui::pos2(player_base_x, lockbar_y + 12.0), egui::pos2(cab_x, lockbar_y + 12.0)],
+                    egui::Stroke::new(1.0, col_dim),
+                );
+                painter.text(egui::pos2((player_base_x + cab_x) / 2.0, lockbar_y + 24.0),
+                    egui::Align2::CENTER_CENTER, &format!("Y={:.0} cm", self.player_y),
+                    font_dim.clone(), col_dim);
+
+                // Screen inclination arc
+                if self.screen_inclination.abs() > 0.5 {
+                    painter.text(egui::pos2(cab_x + 30.0, lockbar_y - 12.0),
+                        egui::Align2::LEFT_CENTER, &format!("{:.0} deg", self.screen_inclination),
+                        font_dim.clone(), col_screen);
+                }
+
+                // === Drag handles ===
+                let handle_radius = 6.0;
+
+                // Handle: lockbar height (drag vertically on the lockbar)
+                let h_lockbar = egui::pos2(cab_x, lockbar_y);
+                painter.circle_filled(h_lockbar, handle_radius, col_handle);
+
+                // Handle: player height (drag on head)
+                let h_head = egui::pos2(player_base_x, player_head_y);
+                painter.circle_filled(h_head, handle_radius, col_handle);
+
+                // Handle: player Y (drag on waist)
+                let h_waist = egui::pos2(player_base_x, player_hip_y);
+                painter.circle_filled(h_waist, handle_radius, col_handle);
+
+                // Handle: screen inclination (drag on screen end)
+                let h_screen = egui::pos2(screen_end_x, screen_end_y);
+                painter.circle_filled(h_screen, handle_radius, col_handle);
+
+                // Handle dragging logic
+                if response.dragged() {
+                    if let Some(pos) = response.interact_pointer_pos() {
+                        let dist = |p: egui::Pos2| ((pos.x - p.x).powi(2) + (pos.y - p.y).powi(2)).sqrt();
+
+                        if dist(h_lockbar) < 30.0 {
+                            // Drag lockbar height
+                            let new_h = (ground_y - pos.y) / scale;
+                            self.lockbar_height = new_h.clamp(0.0, 250.0);
+                        } else if dist(h_head) < 30.0 {
+                            // Drag player height
+                            let new_h = (ground_y - pos.y) / scale;
+                            self.player_height = new_h.clamp(75.0, 250.0);
+                        } else if dist(h_waist) < 30.0 {
+                            // Drag player Y (horizontal movement)
+                            let new_y = -(cab_x - pos.x) / scale;
+                            self.player_y = new_y.clamp(-70.0, 30.0);
+                        } else if dist(h_screen) < 30.0 {
+                            // Drag screen inclination
+                            let dx = pos.x - cab_x;
+                            let dy = lockbar_y - pos.y;
+                            let angle = dy.atan2(dx).to_degrees();
+                            self.screen_inclination = angle.clamp(-30.0, 30.0);
+                        }
+                    }
+                }
+
+                // Recompute player_z from height
+                self.player_z = (self.player_height - 12.0 - self.lockbar_height).max(0.0);
+
+                // === Values panel on the right ===
+                ui.vertical(|ui| {
+                    ui.add_space(8.0);
+                    ui.strong("Valeurs");
+                    ui.add_space(8.0);
+
+                    ui.label("Lockbar largeur (cm) :");
+                    ui.add(egui::DragValue::new(&mut self.lockbar_width).range(10.0..=150.0).speed(1.0).suffix(" cm"));
+                    ui.add_space(4.0);
+
+                    ui.label("Lockbar hauteur du sol (cm) :");
+                    ui.add(egui::DragValue::new(&mut self.lockbar_height).range(0.0..=250.0).speed(1.0).suffix(" cm"));
+                    ui.add_space(4.0);
+
+                    ui.label("Inclinaison playfield (deg) :");
+                    ui.add(egui::DragValue::new(&mut self.screen_inclination).range(-30.0..=30.0).speed(0.5).suffix(" deg"));
+                    ui.add_space(4.0);
+
+                    ui.label("Taille du joueur (cm) :");
+                    ui.add(egui::DragValue::new(&mut self.player_height).range(75.0..=250.0).speed(1.0).suffix(" cm"));
+                    ui.add_space(4.0);
+
+                    ui.label("Distance joueur-lockbar Y (cm) :");
+                    ui.add(egui::DragValue::new(&mut self.player_y).range(-70.0..=30.0).speed(1.0).suffix(" cm"));
+                    ui.add_space(4.0);
+
+                    ui.label("Decalage gauche/droite X (cm) :");
+                    ui.add(egui::DragValue::new(&mut self.player_x).range(-30.0..=30.0).speed(1.0).suffix(" cm"));
+                    ui.add_space(12.0);
+
+                    ui.separator();
+                    ui.label(format!("Hauteur yeux (Z) calculee : {:.0} cm", self.player_z));
+                    ui.label("(taille - 12cm - hauteur lockbar)");
+                });
             });
+        }
     }
 
     fn render_rendering_page(&mut self, ui: &mut egui::Ui) {
@@ -600,16 +1081,14 @@ impl App {
                     });
                 ui.end_row();
 
-                // Max framerate
+                // Max framerate — auto-set from playfield refresh rate
                 ui.label("Limite FPS :");
-                ui.horizontal(|ui| {
-                    ui.add(egui::Slider::new(&mut self.max_framerate, -1.0..=240.0));
-                    ui.label(match self.max_framerate as i32 {
-                        -1 => "(= refresh ecran)".to_string(),
-                        0 => "(illimite)".to_string(),
-                        v => format!("{} fps", v),
-                    });
-                });
+                let pf_refresh = self.displays.iter()
+                    .find(|d| d.role == DisplayRole::Playfield)
+                    .map(|d| d.refresh_rate)
+                    .unwrap_or(60.0);
+                self.max_framerate = pf_refresh;
+                ui.label(format!("{:.2} Hz (refresh rate du playfield)", pf_refresh));
                 ui.end_row();
 
                 // Supersampling
@@ -727,6 +1206,16 @@ impl App {
 
     fn render_inputs_page(&mut self, ui: &mut egui::Ui) {
         ui.heading("Configuration des inputs");
+        ui.add_space(4.0);
+
+        // Detected controllers info
+        if self.pinscape_id.is_some() {
+            ui.label("Pinscape detecte — plunger et nudge configures automatiquement.");
+        }
+        if self.gamepad_id.is_some() {
+            ui.checkbox(&mut self.use_gamepad, "Utiliser la manette pour les flippers, plunger et nudge");
+        }
+
         ui.add_space(4.0);
         ui.label("Cliquez sur \"Mapper\" puis appuyez sur une touche ou un bouton. Echap = garder la valeur actuelle.");
         ui.add_space(8.0);
@@ -853,34 +1342,40 @@ impl App {
     fn render_tilt_page(&mut self, ui: &mut egui::Ui) {
         ui.heading("Sensibilite Tilt / Nudge");
         ui.add_space(4.0);
-        ui.label("Reglage de la sensibilite de votre accelerometre.");
+        ui.label("Reglage de la sensibilite de votre accelerometre (Pinscape / KL25Z).");
         ui.add_space(12.0);
 
         // Request repaint for live accelerometer data
         ui.ctx().request_repaint();
 
-        // Nudge sensitivity — how much the screen shakes when you push the cab
-        ui.label("Nudge - intensite de l'effet visuel quand vous poussez la caisse :");
-        let slider = egui::Slider::new(&mut self.tilt.nudge_sensitivity, 0.0..=1.0)
-            .custom_formatter(|v, _| format!("{:.0}%", v * 100.0));
-        if ui.add_sized([ui.available_width(), 24.0], slider).changed() && !self.tilt.advanced_mode {
-            self.tilt.apply_nudge_sensitivity();
-        }
+        // --- Nudge section ---
+        ui.separator();
+        ui.strong("Nudge");
+        ui.add_space(4.0);
 
+        ui.checkbox(&mut self.tilt.nudge_filter, "Filtre anti-bruit");
+        ui.add_space(4.0);
+
+        ui.label("Sensibilite de l'accelerometre :");
+        ui.add_sized([ui.available_width(), 24.0],
+            egui::Slider::new(&mut self.tilt.nudge_scale, 0.1..=2.0)
+                .custom_formatter(|v, _| format!("{:.1}x", v)));
         ui.add_space(12.0);
 
-        // Tilt sensitivity — how easy it is to trigger TILT (game over)
-        ui.label("Tilt - plus c'est haut, plus le TILT se declenche facilement :");
-        let slider = egui::Slider::new(&mut self.tilt.tilt_sensitivity, 0.0..=1.0)
-            .custom_formatter(|v, _| format!("{:.0}%", v * 100.0));
-        if ui.add_sized([ui.available_width(), 24.0], slider).changed() && !self.tilt.advanced_mode {
-            self.tilt.apply_tilt_sensitivity();
-        }
+        // --- Tilt section ---
+        ui.separator();
+        ui.strong("Tilt");
+        ui.add_space(4.0);
 
-        ui.add_space(16.0);
+        ui.label("Seuil de declenchement du TILT :");
+        ui.add_sized([ui.available_width(), 24.0],
+            egui::Slider::new(&mut self.tilt.plumb_threshold_angle, 5.0..=60.0)
+                .suffix("°")
+                .custom_formatter(|v, _| format!("{:.0}°", v)));
+        ui.add_space(8.0);
 
-        // Accelerometer visualization
-        ui.label("Accelerometre en direct - le point vert = position actuelle, cercle rouge = seuil TILT :");
+        // Single visualization circle: live accel dot + tilt threshold ring
+        ui.label("Poussez la caisse pour voir le point bouger. S'il touche l'anneau rouge = TILT :");
         ui.add_space(4.0);
         let viz_size = egui::vec2(240.0, 240.0);
         let (rect, _response) = ui.allocate_exact_size(viz_size, egui::Sense::hover());
@@ -900,7 +1395,7 @@ impl App {
             egui::Stroke::new(1.0, egui::Color32::DARK_GRAY),
         );
 
-        // TILT threshold circle (red) — if the green dot touches this, it's TILT
+        // TILT threshold ring (red)
         let threshold_radius = radius * (self.tilt.plumb_threshold_angle / 60.0);
         painter.circle_stroke(center, threshold_radius, egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 80, 80)));
         painter.text(
@@ -909,9 +1404,10 @@ impl App {
             egui::FontId::proportional(12.0), egui::Color32::from_rgb(255, 80, 80),
         );
 
-        // Live accelerometer dot
-        let dot_x = center.x + self.accel_x * radius;
-        let dot_y = center.y + self.accel_y * radius;
+        // Live accelerometer dot — apply nudge_scale so slider changes are visible live
+        let scale = self.tilt.nudge_scale * 8.0; // 8x base amplification for visibility
+        let dot_x = center.x + (self.accel_x * scale).clamp(-1.0, 1.0) * radius;
+        let dot_y = center.y + (self.accel_y * scale).clamp(-1.0, 1.0) * radius;
         let dot_pos = egui::pos2(dot_x, dot_y);
         let dist = ((dot_x - center.x).powi(2) + (dot_y - center.y).powi(2)).sqrt();
         let dot_color = if dist > threshold_radius {
@@ -920,29 +1416,6 @@ impl App {
             egui::Color32::from_rgb(100, 220, 100) // safe
         };
         painter.circle_filled(dot_pos, 7.0, dot_color);
-
-        ui.add_space(12.0);
-        ui.checkbox(&mut self.tilt.advanced_mode, "Mode avance");
-
-        if self.tilt.advanced_mode {
-            ui.add_space(8.0);
-
-            ui.label("Nudge Strength (intensite de l'effet visuel) :");
-            ui.add_sized([ui.available_width(), 20.0],
-                egui::Slider::new(&mut self.tilt.nudge_strength, 0.0..=0.25));
-
-            ui.label("Plumb Inertia (inertie du plomb de simulation) :");
-            ui.add_sized([ui.available_width(), 20.0],
-                egui::Slider::new(&mut self.tilt.plumb_inertia, 0.001..=1.0));
-
-            ui.label("Plumb Threshold Angle (angle de declenchement du TILT) :");
-            ui.add_sized([ui.available_width(), 20.0],
-                egui::Slider::new(&mut self.tilt.plumb_threshold_angle, 5.0..=60.0).suffix(" deg"));
-
-            ui.add_space(4.0);
-            ui.checkbox(&mut self.tilt.nudge_filter_0, "Filtre anti-bruit capteur 1");
-            ui.checkbox(&mut self.tilt.nudge_filter_1, "Filtre anti-bruit capteur 2");
-        }
     }
 
     fn render_audio_page(&mut self, ui: &mut egui::Ui) {
@@ -1263,21 +1736,49 @@ impl eframe::App for App {
                             self.capture_state = CaptureState::Idle;
                         }
                     }
-                    JoystickEvent::AxisMotion { device_id, axis, name } => {
-                        if let CaptureState::Capturing(idx) = self.capture_state {
-                            if idx < self.actions.len() {
-                                self.actions[idx].mapping = Some(CapturedInput::JoystickAxis {
-                                    device_id: device_id.clone(),
-                                    axis: *axis,
-                                    name: name.clone(),
-                                });
+                    JoystickEvent::AxisMotion { .. } => {
+                        // Ignore axis motion — this page only maps buttons.
+                        // Analog axes (plunger, nudge) are auto-managed by VPX.
+                    }
+                    JoystickEvent::PinscapeDetected { vpx_id } => {
+                        log::info!("Pinscape detected in UI: {}", vpx_id);
+                        self.pinscape_id = Some(vpx_id.clone());
+                        // Pre-fill Brain/Pinscape default button mappings for unmapped actions
+                        // Arnoz Brain buttons (Pinscape 1-indexed → SDL 0-indexed):
+                        // 14=CoinDoor, 15=Service Exit, 16=Service -, 17=Service +, 18=Service Enter
+                        // 19=NightMode (special), 20=VolumeDown, 21=VolumeUp
+                        let brain_defaults: &[(&str, u8)] = &[
+                            ("CoinDoor", 13), ("ExitGame", 14),
+                            ("Service1", 15), ("Service2", 16), ("Service3", 17), ("Service4", 18),
+                            ("VolumeDown", 19), ("VolumeUp", 20),
+                        ];
+                        for (action_id, button) in brain_defaults {
+                            if let Some(action) = self.actions.iter_mut().find(|a| a.setting_id == *action_id) {
+                                if action.mapping.is_none() {
+                                    action.mapping = Some(CapturedInput::JoystickButton {
+                                        device_id: vpx_id.clone(),
+                                        button: *button,
+                                        name: format!("{} Button {}", vpx_id, button),
+                                    });
+                                }
                             }
-                            self.capture_state = CaptureState::Idle;
                         }
+                    }
+                    JoystickEvent::GamepadDetected { vpx_id, name } => {
+                        log::info!("Gamepad detected in UI: {} ({})", name, vpx_id);
+                        self.gamepad_id = Some(vpx_id.clone());
                     }
                 }
             }
         }
+
+        // Route based on mode
+        if self.mode == AppMode::Launcher {
+            self.render_launcher(ui);
+            return;
+        }
+
+        // === Wizard mode ===
 
         // Header
         egui::Panel::top("wizard_header").show_inside(ui, |ui| {
@@ -1308,6 +1809,10 @@ impl eframe::App for App {
                     if ui.button("< Precedent").clicked() {
                         self.prev_page();
                     }
+                }
+
+                if ui.button("Reset").clicked() {
+                    self.reset_current_page();
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

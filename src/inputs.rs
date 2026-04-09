@@ -64,6 +64,29 @@ pub enum JoystickEvent {
     AxisMotion { device_id: String, axis: u8, name: String },
     /// Live accelerometer/axis data for visualization (axis_id, normalized value -1.0 to 1.0)
     AccelUpdate { x: f32, y: f32 },
+    /// A Pinscape controller was detected with this VPX device ID
+    PinscapeDetected { vpx_id: String },
+    /// A generic gamepad was detected with this VPX device ID
+    GamepadDetected { vpx_id: String, name: String },
+}
+
+/// Build the VPX-compatible device ID for an SDL joystick.
+/// VPX format: `SDLJoy_<serial>` where serial comes from SDL_GetJoystickSerial.
+/// Falls back to GUID string if no serial is available.
+unsafe fn vpx_device_id(joy: *mut sdl3_sys::everything::SDL_Joystick) -> String {
+    let serial_ptr = SDL_GetJoystickSerial(joy);
+    if !serial_ptr.is_null() {
+        let serial = CStr::from_ptr(serial_ptr).to_string_lossy();
+        if !serial.is_empty() {
+            return format!("SDLJoy_{serial}");
+        }
+    }
+    // Fallback: use GUID as hex string
+    let guid = SDL_GetJoystickGUID(joy);
+    let mut buf = [0u8; 64];
+    SDL_GUIDToString(guid, buf.as_mut_ptr() as *mut _, buf.len() as i32);
+    let guid_str = CStr::from_ptr(buf.as_ptr() as *const _).to_string_lossy();
+    format!("SDLJoy_{guid_str}")
 }
 
 /// Get a human-readable name for an SDL scancode.
@@ -172,45 +195,45 @@ pub fn egui_modifiers_to_scancode(modifiers: &egui::Modifiers) -> Option<SDL_Sca
 /// Build the list of all mappable actions with their defaults.
 pub fn default_actions() -> Vec<InputAction> {
     vec![
-        // Essential — ordered: flippers, staged, magna, then game controls
-        InputAction { setting_id: "LeftFlipper", label: "Left Flipper", default_scancode: SDL_SCANCODE_LSHIFT, essential: true, mapping: None },
-        InputAction { setting_id: "RightFlipper", label: "Right Flipper", default_scancode: SDL_SCANCODE_RSHIFT, essential: true, mapping: None },
-        InputAction { setting_id: "LeftStagedFlipper", label: "Left Staged Flipper", default_scancode: SDL_SCANCODE_LSHIFT, essential: true, mapping: None },
-        InputAction { setting_id: "RightStagedFlipper", label: "Right Staged Flipper", default_scancode: SDL_SCANCODE_RSHIFT, essential: true, mapping: None },
-        InputAction { setting_id: "LeftMagna", label: "Left Magna", default_scancode: SDL_SCANCODE_LCTRL, essential: true, mapping: None },
-        InputAction { setting_id: "RightMagna", label: "Right Magna", default_scancode: SDL_SCANCODE_RCTRL, essential: true, mapping: None },
+        // Essentiels — flippers, staged, magna, commandes de jeu
+        InputAction { setting_id: "LeftFlipper", label: "Flipper gauche", default_scancode: SDL_SCANCODE_LSHIFT, essential: true, mapping: None },
+        InputAction { setting_id: "RightFlipper", label: "Flipper droit", default_scancode: SDL_SCANCODE_RSHIFT, essential: true, mapping: None },
+        InputAction { setting_id: "LeftStagedFlipper", label: "Flipper staged gauche", default_scancode: SDL_SCANCODE_LSHIFT, essential: true, mapping: None },
+        InputAction { setting_id: "RightStagedFlipper", label: "Flipper staged droit", default_scancode: SDL_SCANCODE_RSHIFT, essential: true, mapping: None },
+        InputAction { setting_id: "LeftMagna", label: "MagnaSave gauche", default_scancode: SDL_SCANCODE_LCTRL, essential: true, mapping: None },
+        InputAction { setting_id: "RightMagna", label: "MagnaSave droit", default_scancode: SDL_SCANCODE_RCTRL, essential: true, mapping: None },
         InputAction { setting_id: "Lockbar", label: "Lockbar", default_scancode: SDL_SCANCODE_LALT, essential: true, mapping: None },
         InputAction { setting_id: "ExtraBall", label: "Extra Ball", default_scancode: SDL_SCANCODE_B, essential: true, mapping: None },
-        InputAction { setting_id: "LaunchBall", label: "Launch Ball", default_scancode: SDL_SCANCODE_RETURN, essential: true, mapping: None },
-        InputAction { setting_id: "Start", label: "Start Game", default_scancode: SDL_SCANCODE_1, essential: true, mapping: None },
-        InputAction { setting_id: "Credit1", label: "Add Credit", default_scancode: SDL_SCANCODE_5, essential: true, mapping: None },
-        InputAction { setting_id: "ExitGame", label: "Exit Game", default_scancode: SDL_SCANCODE_ESCAPE, essential: true, mapping: None },
-        // Advanced — all remaining mappable actions
-        InputAction { setting_id: "Credit2", label: "Add Credit (2)", default_scancode: SDL_SCANCODE_4, essential: false, mapping: None },
-        InputAction { setting_id: "Credit3", label: "Add Credit (3)", default_scancode: SDL_SCANCODE_3, essential: false, mapping: None },
-        InputAction { setting_id: "Credit4", label: "Add Credit (4)", default_scancode: SDL_SCANCODE_6, essential: false, mapping: None },
-        InputAction { setting_id: "CoinDoor", label: "Coin Door", default_scancode: SDL_SCANCODE_END, essential: false, mapping: None },
+        InputAction { setting_id: "LaunchBall", label: "Lance-bille", default_scancode: SDL_SCANCODE_RETURN, essential: true, mapping: None },
+        InputAction { setting_id: "Start", label: "Start", default_scancode: SDL_SCANCODE_1, essential: true, mapping: None },
+        InputAction { setting_id: "Credit1", label: "Ajouter credit", default_scancode: SDL_SCANCODE_5, essential: true, mapping: None },
+        InputAction { setting_id: "ExitGame", label: "Quitter le jeu", default_scancode: SDL_SCANCODE_ESCAPE, essential: true, mapping: None },
+        // Avances — coin door, services, nudge clavier, etc.
+        InputAction { setting_id: "Credit2", label: "Credit (2)", default_scancode: SDL_SCANCODE_4, essential: false, mapping: None },
+        InputAction { setting_id: "Credit3", label: "Credit (3)", default_scancode: SDL_SCANCODE_3, essential: false, mapping: None },
+        InputAction { setting_id: "Credit4", label: "Credit (4)", default_scancode: SDL_SCANCODE_6, essential: false, mapping: None },
+        InputAction { setting_id: "CoinDoor", label: "Porte monnayeur", default_scancode: SDL_SCANCODE_END, essential: false, mapping: None },
         InputAction { setting_id: "SlamTilt", label: "Slam Tilt", default_scancode: SDL_SCANCODE_HOME, essential: false, mapping: None },
-        InputAction { setting_id: "Reset", label: "Reset Game", default_scancode: SDL_SCANCODE_F3, essential: false, mapping: None },
-        InputAction { setting_id: "Service1", label: "Service #1", default_scancode: SDL_SCANCODE_7, essential: false, mapping: None },
-        InputAction { setting_id: "Service2", label: "Service #2", default_scancode: SDL_SCANCODE_8, essential: false, mapping: None },
-        InputAction { setting_id: "Service3", label: "Service #3", default_scancode: SDL_SCANCODE_9, essential: false, mapping: None },
-        InputAction { setting_id: "Service4", label: "Service #4", default_scancode: SDL_SCANCODE_0, essential: false, mapping: None },
-        InputAction { setting_id: "Service5", label: "Service #5", default_scancode: SDL_SCANCODE_6, essential: false, mapping: None },
-        InputAction { setting_id: "Service6", label: "Service #6", default_scancode: SDL_SCANCODE_PAGEUP, essential: false, mapping: None },
-        InputAction { setting_id: "Service7", label: "Service #7", default_scancode: SDL_SCANCODE_MINUS, essential: false, mapping: None },
-        InputAction { setting_id: "Service8", label: "Service #8", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
-        InputAction { setting_id: "LeftNudge", label: "Left Nudge", default_scancode: SDL_SCANCODE_Z, essential: false, mapping: None },
-        InputAction { setting_id: "RightNudge", label: "Right Nudge", default_scancode: SDL_SCANCODE_SLASH, essential: false, mapping: None },
-        InputAction { setting_id: "CenterNudge", label: "Center Nudge", default_scancode: SDL_SCANCODE_SPACE, essential: false, mapping: None },
+        InputAction { setting_id: "Reset", label: "Reset", default_scancode: SDL_SCANCODE_F3, essential: false, mapping: None },
+        InputAction { setting_id: "Service1", label: "Service Annuler/Quitter", default_scancode: SDL_SCANCODE_7, essential: false, mapping: None },
+        InputAction { setting_id: "Service2", label: "Service Bas (-)", default_scancode: SDL_SCANCODE_8, essential: false, mapping: None },
+        InputAction { setting_id: "Service3", label: "Service Haut (+)", default_scancode: SDL_SCANCODE_9, essential: false, mapping: None },
+        InputAction { setting_id: "Service4", label: "Service Entree/OK", default_scancode: SDL_SCANCODE_0, essential: false, mapping: None },
+        InputAction { setting_id: "Service5", label: "Service #5 (script table)", default_scancode: SDL_SCANCODE_6, essential: false, mapping: None },
+        InputAction { setting_id: "Service6", label: "Service #6 (script table)", default_scancode: SDL_SCANCODE_PAGEUP, essential: false, mapping: None },
+        InputAction { setting_id: "Service7", label: "Service #7 (script table)", default_scancode: SDL_SCANCODE_MINUS, essential: false, mapping: None },
+        InputAction { setting_id: "Service8", label: "Service #8 (script table)", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
+        InputAction { setting_id: "LeftNudge", label: "Nudge gauche", default_scancode: SDL_SCANCODE_Z, essential: false, mapping: None },
+        InputAction { setting_id: "RightNudge", label: "Nudge droit", default_scancode: SDL_SCANCODE_SLASH, essential: false, mapping: None },
+        InputAction { setting_id: "CenterNudge", label: "Nudge centre", default_scancode: SDL_SCANCODE_SPACE, essential: false, mapping: None },
         InputAction { setting_id: "Tilt", label: "Tilt", default_scancode: SDL_SCANCODE_T, essential: false, mapping: None },
         InputAction { setting_id: "Pause", label: "Pause", default_scancode: SDL_SCANCODE_P, essential: false, mapping: None },
-        InputAction { setting_id: "VolumeDown", label: "Volume Down", default_scancode: SDL_SCANCODE_MINUS, essential: false, mapping: None },
-        InputAction { setting_id: "VolumeUp", label: "Volume Up", default_scancode: SDL_SCANCODE_EQUALS, essential: false, mapping: None },
-        InputAction { setting_id: "Custom1", label: "Custom #1", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
-        InputAction { setting_id: "Custom2", label: "Custom #2", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
-        InputAction { setting_id: "Custom3", label: "Custom #3", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
-        InputAction { setting_id: "Custom4", label: "Custom #4", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
+        InputAction { setting_id: "VolumeDown", label: "Volume -", default_scancode: SDL_SCANCODE_MINUS, essential: false, mapping: None },
+        InputAction { setting_id: "VolumeUp", label: "Volume +", default_scancode: SDL_SCANCODE_EQUALS, essential: false, mapping: None },
+        InputAction { setting_id: "Custom1", label: "Custom #1 (mod table)", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
+        InputAction { setting_id: "Custom2", label: "Custom #2 (mod table)", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
+        InputAction { setting_id: "Custom3", label: "Custom #3 (mod table)", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
+        InputAction { setting_id: "Custom4", label: "Custom #4 (mod table)", default_scancode: SDL_SCANCODE_UNKNOWN, essential: false, mapping: None },
     ]
 }
 
@@ -237,7 +260,18 @@ fn effective_scancode(action: &InputAction) -> SDL_Scancode {
     }
 }
 
-/// Spawn the SDL3 joystick-only thread (keyboard is handled via egui).
+/// Info about an opened joystick for direct polling.
+struct OpenedJoystick {
+    handle: *mut sdl3_sys::everything::SDL_Joystick,
+    vpx_id: String,
+    num_buttons: i32,
+    num_axes: i32,
+    prev_buttons: Vec<bool>,
+}
+
+/// Spawn the SDL3 joystick polling thread (keyboard is handled via egui).
+/// Uses direct state polling (SDL_GetJoystickButton/Axis) instead of SDL_PollEvent
+/// to avoid the SDL3 main-thread assertion on event pumping.
 /// Returns a receiver for joystick events.
 pub fn spawn_joystick_thread() -> crossbeam_channel::Receiver<JoystickEvent> {
     let (evt_tx, evt_rx) = crossbeam_channel::unbounded::<JoystickEvent>();
@@ -251,6 +285,7 @@ pub fn spawn_joystick_thread() -> crossbeam_channel::Receiver<JoystickEvent> {
             }
 
             // Open all connected joysticks
+            let mut joysticks: Vec<OpenedJoystick> = Vec::new();
             let mut joy_count: i32 = 0;
             let joy_ids = SDL_GetJoysticks(&mut joy_count);
             if !joy_ids.is_null() {
@@ -264,69 +299,72 @@ pub fn spawn_joystick_thread() -> crossbeam_channel::Receiver<JoystickEvent> {
                         } else {
                             format!("Joystick {}", jid.0)
                         };
-                        log::info!("Opened joystick: {} (id={})", name, jid.0);
+                        let dev_id = vpx_device_id(joy);
+                        let num_buttons = SDL_GetNumJoystickButtons(joy);
+                        let num_axes = SDL_GetNumJoystickAxes(joy);
+                        log::info!("Opened joystick: {} (vpx_id={}, buttons={}, axes={})", name, dev_id, num_buttons, num_axes);
+                        // Detect Pinscape controller
+                        if name.contains("Pinscape") || dev_id.contains("PSC") {
+                            log::info!("Pinscape controller detected: {}", dev_id);
+                            let _ = evt_tx.send(JoystickEvent::PinscapeDetected { vpx_id: dev_id.clone() });
+                        } else if SDL_IsGamepad(jid) {
+                            // Generic gamepad (Xbox, PS, etc.)
+                            log::info!("Gamepad detected: {} ({})", name, dev_id);
+                            let _ = evt_tx.send(JoystickEvent::GamepadDetected { vpx_id: dev_id.clone(), name: name.clone() });
+                        }
+                        joysticks.push(OpenedJoystick {
+                            handle: joy,
+                            vpx_id: dev_id,
+                            num_buttons,
+                            num_axes,
+                            prev_buttons: vec![false; num_buttons as usize],
+                        });
                     }
                 }
                 SDL_free(joy_ids as *mut _);
             }
-            log::info!("Joystick thread started, {} joystick(s) found", joy_count);
-
-            let mut accel_x: f32 = 0.0;
-            let mut accel_y: f32 = 0.0;
+            log::info!("Joystick thread started, {} joystick(s) found", joysticks.len());
 
             loop {
-                let mut event: SDL_Event = std::mem::zeroed();
-                while SDL_PollEvent(&mut event) {
-                    match SDL_EventType(event.r#type) {
-                        SDL_EVENT_JOYSTICK_BUTTON_DOWN => {
-                            let jbutton = event.jbutton;
-                            let device_id = format!("Joy{}", jbutton.which.0);
-                            let name = format!("Joy{} Button {}", jbutton.which.0, jbutton.button);
+                // Update joystick state (required before reading)
+                SDL_UpdateJoysticks();
+
+                for js in &mut joysticks {
+                    // Poll buttons — detect newly pressed
+                    for b in 0..js.num_buttons {
+                        let pressed = SDL_GetJoystickButton(js.handle, b);
+                        let was_pressed = js.prev_buttons[b as usize];
+                        if pressed && !was_pressed {
                             let _ = evt_tx.send(JoystickEvent::ButtonDown {
-                                device_id,
-                                button: jbutton.button,
-                                name,
+                                device_id: js.vpx_id.clone(),
+                                button: b as u8,
+                                name: format!("{} Button {}", js.vpx_id, b),
                             });
                         }
-                        SDL_EVENT_JOYSTICK_AXIS_MOTION => {
-                            let jaxis = event.jaxis;
-                            // Send axis for input capture (only on big movement)
-                            if jaxis.value.abs() > 16000 {
-                                let device_id = format!("Joy{}", jaxis.which.0);
-                                let name = format!("Joy{} Axis {}", jaxis.which.0, jaxis.axis);
-                                let _ = evt_tx.send(JoystickEvent::AxisMotion {
-                                    device_id,
-                                    axis: jaxis.axis,
-                                    name,
-                                });
-                            }
-                            // Send live accel data for tilt visualization
-                            // Axes 0,1 are typically X,Y accelerometer on KL25Z/Pinscape
-                            let norm = jaxis.value as f32 / 32767.0;
-                            if jaxis.axis == 0 {
-                                accel_x = norm;
-                            } else if jaxis.axis == 1 {
-                                accel_y = norm;
-                            }
-                            let _ = evt_tx.send(JoystickEvent::AccelUpdate { x: accel_x, y: accel_y });
+                        js.prev_buttons[b as usize] = pressed;
+                    }
+
+                    // Poll axes — capture big movements for input binding
+                    for a in 0..js.num_axes {
+                        let value = SDL_GetJoystickAxis(js.handle, a);
+                        if value.abs() > 16000 {
+                            let _ = evt_tx.send(JoystickEvent::AxisMotion {
+                                device_id: js.vpx_id.clone(),
+                                axis: a as u8,
+                                name: format!("{} Axis {}", js.vpx_id, a),
+                            });
                         }
-                        SDL_EVENT_JOYSTICK_ADDED => {
-                            let jdevice = event.jdevice;
-                            let joy = SDL_OpenJoystick(jdevice.which);
-                            if !joy.is_null() {
-                                let name_ptr = SDL_GetJoystickName(joy);
-                                let name = if !name_ptr.is_null() {
-                                    CStr::from_ptr(name_ptr).to_string_lossy().into_owned()
-                                } else {
-                                    format!("Joystick {}", jdevice.which.0)
-                                };
-                                log::info!("Joystick connected: {}", name);
-                            }
-                        }
-                        SDL_EVENT_QUIT => return,
-                        _ => {}
+                    }
+
+                    // Send raw normalized accel data for tilt visualization (axes 0+1)
+                    // Scale is applied in the UI based on user's nudge_scale setting
+                    if js.num_axes >= 2 {
+                        let ax = SDL_GetJoystickAxis(js.handle, 0) as f32 / 32767.0;
+                        let ay = SDL_GetJoystickAxis(js.handle, 1) as f32 / 32767.0;
+                        let _ = evt_tx.send(JoystickEvent::AccelUpdate { x: ax, y: ay });
                     }
                 }
+
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
         }

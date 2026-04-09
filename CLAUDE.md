@@ -83,6 +83,7 @@ VPX uses absolute desktop coordinates for window placement. Screens are placed l
 ```ini
 [Player]
 PlayfieldDisplay = <display_name>
+PlayfieldFullScreen = 1  ; Required for correct multi-screen positioning
 PlayfieldWndX = 0
 PlayfieldWndY = 0
 PlayfieldWidth = 3840
@@ -109,10 +110,32 @@ ScoreViewHeight = 1080
 ### Page 2 — Input mapping
 
 **Input binding format** (stored in `[Input]` section):
-- Digital: `Mapping.<ActionId> = <deviceId>;<buttonId>` (e.g. `Key;42`)
+- Devices are declared with `Device.<deviceId>.Type` and `Device.<deviceId>.Name`
+  - Device IDs: `Key` (keyboard), `Mouse`, `SDLJoy_<unique_id>` (joystick/gamepad)
+  - `NoAutoLayout = 1` disables auto-layout for that device
+- Digital: `Mapping.<ActionId> = <deviceId>;<buttonId>` (e.g. `Key;42` or `SDLJoy_PSC0041701862884E45J009;7`)
   - Multiple alternatives separated by `|`, combos by `&`
 - Analog: `Mapping.<SensorId> = <deviceId>;<axisId>;<type>;<deadZone>;<scale>;<limit>`
   - Type: P=Position, V=Velocity, A=Acceleration
+
+**Real example** (Pinscape controller + keyboard):
+```ini
+[Input]
+Devices = 
+Device.Key.Type = 
+Device.Key.NoAutoLayout = 
+Device.Mouse.Type = 
+Device.Mouse.NoAutoLayout = 
+Device.SDLJoy_PSC0041701862884E45J009.Type = 
+Device.SDLJoy_PSC0041701862884E45J009.NoAutoLayout = 1
+Mapping.LeftFlipper = SDLJoy_PSC0041701862884E45J009;7
+Mapping.RightFlipper = SDLJoy_PSC0041701862884E45J009;8
+Mapping.LaunchBall = SDLJoy_PSC0041701862884E45J009;4
+Mapping.Start = SDLJoy_PSC0041701862884E45J009;0
+Mapping.Credit1 = Key;34
+Mapping.LeftNudge = Key;29
+Mapping.RightNudge = Key;56
+```
 
 **SDL3 event loop** runs on a **dedicated thread**, communicates via `crossbeam-channel`.
 
@@ -300,6 +323,8 @@ Simple file picker: select the root directory containing all table folders (fold
 Stored in PinReady's own SQLite config (not in VPinballX.ini).
 Default suggestion: scan common locations (`~/Documents`, `~/tables`, `~/Okay`, etc.)
 
+**Note to user:** All settings configured in the wizard can also be modified in-game via the **F12** key (InGame UI).
+
 ### Page 6 — Table selector (main launcher)
 
 *Phase 2 — not part of initial configuration wizard.*
@@ -426,9 +451,10 @@ cargo build --release
 
 ---
 
-## ⚠️ Important — Remote development via SSH
+## Running
 
-Claude Code is operated **remotely over SSH**. Do NOT run the compiled binary, do NOT launch VPinballX, do NOT execute any GUI application. Build only (`cargo build`), never `cargo run`.
+Claude Code is operated **locally**. You can build and run the application (`cargo build`, `cargo run`).
+Do NOT launch VPinballX directly.
 
 ---
 
