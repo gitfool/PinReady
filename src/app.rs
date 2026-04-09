@@ -14,12 +14,17 @@ pub enum AppMode {
     Launcher,
 }
 
+/// Viewport ID for the backglass window
+const BG_VIEWPORT: &str = "backglass_viewport";
+
 /// A discovered table
 #[derive(Debug, Clone)]
 pub struct TableEntry {
     pub path: std::path::PathBuf,
     pub name: String,
     pub has_directb2s: bool,
+    pub bg_path: Option<std::path::PathBuf>,
+    pub bg_bytes: Option<std::sync::Arc<[u8]>>,
 }
 
 /// Wizard pages
@@ -142,6 +147,10 @@ pub struct App {
     // Launcher
     tables: Vec<TableEntry>,
     table_filter: String,
+    selected_table: usize,
+    images_preloaded: bool,
+    bg_viewport_last: usize, // last table index sent to BG viewport
+    bg_rx: Option<crossbeam_channel::Receiver<(usize, std::path::PathBuf)>>,
 
     // Quit timer (set after finalize_wizard)
     quit_after_ms: Option<std::time::Instant>,
@@ -291,6 +300,10 @@ impl App {
             assets_dir,
             tables: Vec::new(),
             table_filter: String::new(),
+            selected_table: 0,
+            images_preloaded: false,
+            bg_viewport_last: usize::MAX,
+            bg_rx: None,
             quit_after_ms: None,
         };
         // Pre-scan tables if starting in launcher mode
@@ -469,22 +482,6 @@ impl App {
     }
 
     fn save_inputs(&mut self) {
-        // Collect all unique device IDs used in mappings
-        let mut device_ids: Vec<String> = Vec::new();
-        let mut has_keyboard = false;
-        for action in &self.actions {
-            match &action.mapping {
-                Some(CapturedInput::Keyboard { .. }) => has_keyboard = true,
-                Some(CapturedInput::JoystickButton { device_id, .. })
-                | Some(CapturedInput::JoystickAxis { device_id, .. }) => {
-                    if !device_ids.contains(device_id) {
-                        device_ids.push(device_id.clone());
-                    }
-                }
-                None => has_keyboard = true, // defaults are keyboard
-            }
-        }
-
         // If Pinscape detected, write device declaration + analog mappings
         // This replaces VPX's "Apply Device Layout?" dialog
         if let Some(psc_id) = &self.pinscape_id {
@@ -611,13 +608,22 @@ impl App {
                                 .unwrap_or_default()
                                 .to_string_lossy()
                                 .replace('_', " ");
-                            let has_directb2s = path.join(
-                                fp.file_stem().unwrap_or_default()
-                            ).with_extension("directb2s").exists();
+                            let b2s_path = fp.with_extension("directb2s");
+                            let has_directb2s = b2s_path.exists();
+                            let cached = crate::assets::cached_bg_path(&path);
+                            let (bg_path, bg_bytes) = if cached.exists() {
+                                let bytes = std::fs::read(&cached).ok()
+                                    .map(|b| std::sync::Arc::from(b.into_boxed_slice()));
+                                (Some(cached), bytes)
+                            } else {
+                                (None, None)
+                            };
                             self.tables.push(TableEntry {
                                 path: fp,
                                 name,
                                 has_directb2s,
+                                bg_path,
+                                bg_bytes,
                             });
                             break; // one vpx per folder
                         }
@@ -627,6 +633,29 @@ impl App {
         }
         self.tables.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         log::info!("Scanned {} tables in {}", self.tables.len(), dir);
+
+        // Spawn background thread to extract missing backglass images
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let jobs: Vec<(usize, std::path::PathBuf, std::path::PathBuf)> = self.tables.iter().enumerate()
+            .filter(|(_, t)| t.bg_path.is_none() && t.has_directb2s)
+            .map(|(i, t)| {
+                let b2s = t.path.with_extension("directb2s");
+                let table_dir = t.path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf();
+                (i, b2s, table_dir)
+            })
+            .collect();
+        if !jobs.is_empty() {
+            log::info!("Extracting {} backglass images in background...", jobs.len());
+            std::thread::spawn(move || {
+                for (idx, b2s_path, table_dir) in jobs {
+                    if let Some(cached) = crate::assets::extract_backglass(&b2s_path, &table_dir) {
+                        let _ = tx.send((idx, cached));
+                    }
+                }
+                log::info!("Background backglass extraction complete");
+            });
+        }
+        self.bg_rx = Some(rx);
     }
 
     fn launch_table(&self, table: &TableEntry) {
@@ -642,10 +671,103 @@ impl App {
         }
     }
 
+    fn process_bg_extraction(&mut self, ctx: &egui::Context) {
+        if let Some(rx) = &self.bg_rx {
+            while let Ok((idx, path)) = rx.try_recv() {
+                if idx < self.tables.len() {
+                    if let Ok(bytes) = std::fs::read(&path) {
+                        let arc: std::sync::Arc<[u8]> = std::sync::Arc::from(bytes.into_boxed_slice());
+                        let uri = format!("bytes://bg/{idx}");
+                        ctx.include_bytes(uri, arc.to_vec());
+                        self.tables[idx].bg_bytes = Some(arc);
+                    }
+                    self.tables[idx].bg_path = Some(path);
+                }
+            }
+        }
+    }
+
+    fn preload_images(&mut self, ctx: &egui::Context) {
+        if self.images_preloaded { return; }
+        self.images_preloaded = true;
+        for (idx, table) in self.tables.iter().enumerate() {
+            if let Some(ref path) = table.bg_path {
+                if let Ok(bytes) = std::fs::read(path) {
+                    let uri = format!("bytes://bg/{idx}");
+                    ctx.include_bytes(uri, bytes);
+                }
+            }
+        }
+        log::info!("Preloaded {} images into RAM", self.tables.iter().filter(|t| t.bg_path.is_some()).count());
+    }
+
+    fn handle_launcher_joystick(&mut self) {
+        // Process joystick buttons for pincab navigation
+        if let Some(rx) = &self.joystick_rx {
+            while let Ok(event) = rx.try_recv() {
+                match &event {
+                    JoystickEvent::ButtonDown { button, .. } => {
+                        if self.tables.is_empty() { continue; }
+                        match *button {
+                            // Left flipper (button 7) = previous table
+                            7 => {
+                                if self.selected_table > 0 {
+                                    self.selected_table -= 1;
+                                } else {
+                                    self.selected_table = self.tables.len() - 1;
+                                }
+                            }
+                            // Right flipper (button 8) = next table
+                            8 => {
+                                self.selected_table = (self.selected_table + 1) % self.tables.len();
+                            }
+                            // Start (button 0) = launch table
+                            0 => {
+                                let table = self.tables[self.selected_table].clone();
+                                self.launch_table(&table);
+                            }
+                            // Launch ball (button 4) = switch to config
+                            4 => {
+                                self.mode = AppMode::Wizard;
+                            }
+                            _ => {}
+                        }
+                    }
+                    JoystickEvent::AccelUpdate { .. } => {}
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    #[allow(deprecated)]
     fn render_launcher(&mut self, ui: &mut egui::Ui) {
+        // Install image loaders once
+        egui_extras::install_image_loaders(ui.ctx());
+
+        self.process_bg_extraction(ui.ctx());
+        self.preload_images(ui.ctx());
+        self.handle_launcher_joystick();
+        ui.ctx().request_repaint(); // keep refreshing for bg extraction + joystick
+
+        // In pincab mode (multi-screen), position main window on DMD
+        let has_dmd = self.displays.iter().any(|d| d.role == DisplayRole::Dmd);
+        if has_dmd {
+            if let Some(dmd) = self.displays.iter().find(|d| d.role == DisplayRole::Dmd) {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::OuterPosition(
+                    egui::pos2(dmd.x as f32, dmd.y as f32)));
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(
+                    egui::vec2(dmd.width as f32, dmd.height as f32)));
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Decorations(false));
+            }
+        }
+
         ui.horizontal(|ui| {
-            ui.heading("PinReady — Lanceur de tables");
+            ui.label(egui::RichText::new("PinReady — Lanceur de tables").size(24.0).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("Quitter").clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
                 if ui.button("Configuration").clicked() {
                     self.mode = AppMode::Wizard;
                 }
@@ -669,30 +791,175 @@ impl App {
             return;
         }
 
-        // Table list
+        // Table grid with backglass images
         let filter = self.table_filter.to_lowercase();
         let mut launch_idx: Option<usize> = None;
+        let card_width = 400.0;
+        let card_height = 520.0;
+        let img_height = 400.0;
+        let available_width = ui.available_width();
+        let cols = ((available_width / (card_width + 8.0)) as usize).max(1);
 
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for (idx, table) in self.tables.iter().enumerate() {
-                if !filter.is_empty() && !table.name.to_lowercase().contains(&filter) {
-                    continue;
-                }
+        egui::ScrollArea::vertical()
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            .show(ui, |ui| {
+            let filtered: Vec<usize> = (0..self.tables.len())
+                .filter(|&i| filter.is_empty() || self.tables[i].name.to_lowercase().contains(&filter))
+                .collect();
+
+            for row_start in (0..filtered.len()).step_by(cols) {
+                // Center the row
+                let row_count = (filtered.len() - row_start).min(cols);
+                let row_width = row_count as f32 * (card_width + 8.0) - 8.0;
+                let left_pad = ((available_width - row_width) / 2.0).max(0.0);
+
                 ui.horizontal(|ui| {
-                    if ui.button("Jouer").clicked() {
-                        launch_idx = Some(idx);
-                    }
-                    ui.label(&table.name);
-                    if table.has_directb2s {
-                        ui.colored_label(egui::Color32::from_rgb(100, 180, 100), "B2S");
+                    ui.add_space(left_pad);
+                    for col in 0..cols {
+                        let fi = row_start + col;
+                        if fi >= filtered.len() { break; }
+                        let idx = filtered[fi];
+                        let table = &self.tables[idx];
+
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(card_width, card_height),
+                            egui::Sense::click(),
+                        );
+
+                        if response.hovered() {
+                            self.selected_table = idx;
+                        }
+                        if response.clicked() {
+                            launch_idx = Some(idx);
+                        }
+
+                        let painter = ui.painter_at(rect);
+                        let is_selected = idx == self.selected_table;
+
+                        // Card background
+                        let bg_color = if is_selected {
+                            egui::Color32::from_rgb(60, 60, 90)
+                        } else if response.hovered() {
+                            egui::Color32::from_rgb(50, 50, 65)
+                        } else {
+                            egui::Color32::from_rgb(35, 35, 45)
+                        };
+                        painter.rect_filled(rect, 6.0, bg_color);
+
+                        // Selection border
+                        if is_selected {
+                            painter.rect_stroke(rect, 6.0, egui::Stroke::new(3.0, egui::Color32::from_rgb(255, 200, 0)), egui::StrokeKind::Outside);
+                        }
+
+                        // Backglass image (centered in image area)
+                        let img_area = egui::Rect::from_min_size(
+                            rect.min + egui::vec2(4.0, 4.0),
+                            egui::vec2(card_width - 8.0, img_height - 8.0),
+                        );
+                        if table.bg_path.is_some() {
+                            let uri = format!("bytes://bg/{idx}");
+                            let img = egui::Image::new(uri)
+                                .shrink_to_fit()
+                                .corner_radius(egui::CornerRadius::same(4));
+                            img.paint_at(ui, img_area);
+                        } else {
+                            // Placeholder
+                            painter.rect_filled(img_area, 4.0, egui::Color32::from_rgb(25, 25, 30));
+                            painter.text(
+                                img_area.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "Pas de backglass",
+                                egui::FontId::proportional(18.0),
+                                egui::Color32::GRAY,
+                            );
+                        }
+
+                        // Table name (centered, bigger, bold)
+                        let text_center = egui::pos2(rect.center().x, rect.min.y + img_height + (card_height - img_height) / 2.0);
+                        painter.text(
+                            text_center,
+                            egui::Align2::CENTER_CENTER,
+                            &table.name,
+                            egui::FontId::new(24.0, egui::FontFamily::Proportional),
+                            if is_selected { egui::Color32::from_rgb(255, 200, 0) } else { egui::Color32::WHITE },
+                        );
+
+                        // B2S badge
+                        if !table.has_directb2s {
+                            let badge_pos = egui::pos2(rect.max.x - 12.0, rect.min.y + img_height + 6.0);
+                            painter.text(
+                                badge_pos,
+                                egui::Align2::RIGHT_TOP,
+                                "No B2S",
+                                egui::FontId::proportional(14.0),
+                                egui::Color32::from_rgb(255, 100, 100),
+                            );
+                        }
                     }
                 });
+                ui.add_space(4.0);
             }
         });
 
         if let Some(idx) = launch_idx {
+            self.selected_table = idx;
             let table = self.tables[idx].clone();
             self.launch_table(&table);
+        }
+
+        // If multi-screen, show backglass on BG display via secondary viewport
+        let has_bg_display = self.displays.iter().any(|d| d.role == DisplayRole::Backglass);
+        if has_bg_display && !self.tables.is_empty() {
+            let selected = self.selected_table.min(self.tables.len() - 1);
+            let table_name = self.tables[selected].name.clone();
+            let bg_changed = selected != self.bg_viewport_last;
+            let bg_bytes = if bg_changed {
+                self.bg_viewport_last = selected;
+                self.tables[selected].bg_bytes.clone()
+            } else {
+                None // already loaded, don't re-send
+            };
+            let has_bg = self.tables[selected].bg_path.is_some();
+            let bg_display = self.displays.iter().find(|d| d.role == DisplayRole::Backglass);
+            let (bg_x, bg_y, bg_w, bg_h) = bg_display
+                .map(|d| (d.x as f32, d.y as f32, d.width as f32, d.height as f32))
+                .unwrap_or((0.0, 0.0, 1280.0, 1024.0));
+
+            let bg_viewport_id = egui::ViewportId::from_hash_of(BG_VIEWPORT);
+            ui.ctx().request_repaint_of(bg_viewport_id);
+            ui.ctx().show_viewport_deferred(
+                bg_viewport_id,
+                egui::ViewportBuilder::default()
+                    .with_title("PinReady — Backglass")
+                    .with_position(egui::pos2(bg_x, bg_y))
+                    .with_inner_size(egui::vec2(bg_w, bg_h))
+                    .with_decorations(false),
+                move |ctx, _class| {
+                    egui_extras::install_image_loaders(ctx);
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
+                        .show(ctx, |ui| {
+                            // Register new bytes only when selection changed
+                            if let Some(ref bytes) = bg_bytes {
+                                let uri = format!("bytes://viewport_bg/{selected}");
+                                ctx.include_bytes(uri, bytes.to_vec());
+                            }
+                            if has_bg {
+                                let uri = format!("bytes://viewport_bg/{selected}");
+                                ui.centered_and_justified(|ui| {
+                                    ui.add(egui::Image::new(uri).shrink_to_fit());
+                                });
+                            } else {
+                                ui.centered_and_justified(|ui| {
+                                    ui.colored_label(
+                                        egui::Color32::WHITE,
+                                        egui::RichText::new(&table_name).size(32.0),
+                                    );
+                                });
+                            }
+                        });
+                },
+            );
         }
     }
 
@@ -1667,6 +1934,25 @@ impl App {
         ui.heading("Repertoire des tables");
         ui.add_space(4.0);
         ui.label("Selectionnez le repertoire contenant vos tables VPX (un dossier par table).");
+        ui.add_space(8.0);
+
+        ui.label("Arborescence attendue (folder-per-table VPinballX 10.8) :");
+        ui.add_space(4.0);
+        ui.code(
+"Tables/
+  Nom_De_La_Table/
+    Nom_De_La_Table.vpx          <- table (obligatoire)
+    Nom_De_La_Table.directb2s    <- backglass (meme nom que le .vpx)
+    Nom_De_La_Table.ini          <- config per-table (optionnel)
+    pinmame/
+      roms/rom_name.zip          <- ROM PinMAME
+      nvram/rom_name.nv          <- sauvegarde
+    altcolor/rom_name/            <- colorisation Serum/VNI
+    medias/                       <- images/videos frontend"
+        );
+
+        ui.add_space(8.0);
+        ui.label("Tous les parametres sont modifiables en jeu via F12.");
         ui.add_space(12.0);
 
         ui.horizontal(|ui| {
@@ -1685,7 +1971,6 @@ impl App {
         if !self.tables_dir.is_empty() {
             let path = std::path::Path::new(&self.tables_dir);
             if path.is_dir() {
-                // Count table folders
                 let count = std::fs::read_dir(path)
                     .map(|entries| {
                         entries
@@ -1695,7 +1980,7 @@ impl App {
                     })
                     .unwrap_or(0);
                 ui.add_space(8.0);
-                ui.label(format!("Repertoire valide - {count} dossiers trouves"));
+                ui.label(format!("Repertoire valide — {count} dossiers trouves"));
             } else {
                 ui.add_space(8.0);
                 ui.colored_label(egui::Color32::RED, "Ce repertoire n'existe pas");
@@ -1715,7 +2000,13 @@ impl eframe::App for App {
             ui.ctx().request_repaint(); // keep ticking
         }
 
-        // Process joystick events (shared between tilt viz and input capture)
+        // Route based on mode — joystick events are handled per-mode
+        if self.mode == AppMode::Launcher {
+            self.render_launcher(ui);
+            return;
+        }
+
+        // === Wizard mode: process joystick events for tilt viz + input capture ===
         if let Some(rx) = &self.joystick_rx {
             while let Ok(event) = rx.try_recv() {
                 match &event {
@@ -1724,7 +2015,6 @@ impl eframe::App for App {
                         self.accel_y = *y;
                     }
                     JoystickEvent::ButtonDown { device_id, button, name } => {
-                        // If capturing input, assign it
                         if let CaptureState::Capturing(idx) = self.capture_state {
                             if idx < self.actions.len() {
                                 self.actions[idx].mapping = Some(CapturedInput::JoystickButton {
@@ -1736,17 +2026,10 @@ impl eframe::App for App {
                             self.capture_state = CaptureState::Idle;
                         }
                     }
-                    JoystickEvent::AxisMotion { .. } => {
-                        // Ignore axis motion — this page only maps buttons.
-                        // Analog axes (plunger, nudge) are auto-managed by VPX.
-                    }
+                    JoystickEvent::AxisMotion { .. } => {}
                     JoystickEvent::PinscapeDetected { vpx_id } => {
                         log::info!("Pinscape detected in UI: {}", vpx_id);
                         self.pinscape_id = Some(vpx_id.clone());
-                        // Pre-fill Brain/Pinscape default button mappings for unmapped actions
-                        // Arnoz Brain buttons (Pinscape 1-indexed → SDL 0-indexed):
-                        // 14=CoinDoor, 15=Service Exit, 16=Service -, 17=Service +, 18=Service Enter
-                        // 19=NightMode (special), 20=VolumeDown, 21=VolumeUp
                         let brain_defaults: &[(&str, u8)] = &[
                             ("CoinDoor", 13), ("ExitGame", 14),
                             ("Service1", 15), ("Service2", 16), ("Service3", 17), ("Service4", 18),
@@ -1770,12 +2053,6 @@ impl eframe::App for App {
                     }
                 }
             }
-        }
-
-        // Route based on mode
-        if self.mode == AppMode::Launcher {
-            self.render_launcher(ui);
-            return;
         }
 
         // === Wizard mode ===

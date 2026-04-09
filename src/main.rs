@@ -3,6 +3,7 @@
 // See https://www.gnu.org/licenses/gpl-3.0.html
 
 mod app;
+mod assets;
 mod audio;
 mod config;
 mod db;
@@ -50,16 +51,17 @@ fn main() -> Result<()> {
 
     // Open database
     let db = db::Database::open(None)?;
-    let is_configured = db.is_configured();
 
     // Load VPX config (pre-fill wizard if ini exists)
     let vpx_config = config::VpxConfig::load(None)?;
 
     // Determine start mode:
     // - --config flag → wizard
-    // - No DB or no VPX ini → wizard (first run)
+    // - No VPX ini file → wizard (first run)
     // - Otherwise → launcher
-    let start_in_wizard = force_config || !is_configured;
+    let ini_path = std::path::Path::new(&std::env::var("HOME").unwrap_or_default())
+        .join(".local/share/VPinballX/10.8/VPinballX.ini");
+    let start_in_wizard = force_config || !ini_path.exists();
     if start_in_wizard {
         log::info!("Starting in configuration wizard mode");
     } else {

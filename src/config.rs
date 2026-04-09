@@ -26,6 +26,11 @@ impl VpxConfig {
     }
 
     pub fn save(&self) -> Result<()> {
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+        }
         let content = self.ini.to_string();
         let line_count = content.split('\n').count();
         log::info!("Saving ini: {} bytes, {} lines to {}", content.len(), line_count, self.path.display());
@@ -110,10 +115,6 @@ impl VpxConfig {
     }
 
     // --- Tilt / Nudge ---
-
-    pub fn set_nudge_strength(&mut self, value: f32) {
-        self.set_f32("Player", "NudgeStrength", value);
-    }
 
     pub fn set_plumb_inertia(&mut self, value: f32) {
         self.set_f32("Player", "PlumbInertia", value);

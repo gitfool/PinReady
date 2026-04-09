@@ -8,7 +8,7 @@ description = "Cross-platform configurator and launcher for VPinballX standalone
 # UI
 eframe = "0.34"
 egui = "0.34"
-egui_extras = { version = "0.34", features = ["image"] }
+egui_extras = { version = "0.34", features = ["image", "file"] }
 
 # Display / Input
 sdl3-sys = { version = "0.6", features = ["build-from-source-static"] }

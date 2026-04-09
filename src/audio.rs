@@ -96,6 +96,7 @@ pub struct AudioConfig {
     pub sound_3d_mode: Sound3DMode,
     pub music_volume: i32,
     pub sound_volume: i32,
+    #[allow(dead_code)]
     pub test_phase: AudioTestPhase,
     pub music_looping: bool,
     pub music_pan: f32,

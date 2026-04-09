@@ -61,6 +61,7 @@ impl CapturedInput {
 #[derive(Clone)]
 pub enum JoystickEvent {
     ButtonDown { device_id: String, button: u8, name: String },
+    #[allow(dead_code)]
     AxisMotion { device_id: String, axis: u8, name: String },
     /// Live accelerometer/axis data for visualization (axis_id, normalized value -1.0 to 1.0)
     AccelUpdate { x: f32, y: f32 },
