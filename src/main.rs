@@ -1,6 +1,7 @@
 // PinReady — VPinballX configuration wizard & table launcher
 // Copyright (C) 2026 — Licensed under GPLv3+
 // See https://www.gnu.org/licenses/gpl-3.0.html
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
 mod assets;

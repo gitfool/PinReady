@@ -10,6 +10,10 @@ keywords = ["vpinball", "pinball", "cabinet", "launcher", "configurator"]
 categories = ["games", "config", "gui"]
 readme = "README.md"
 
+[features]
+default = []
+win-icon = ["winres"]
+
 [dependencies]
 # UI
 eframe = "0.34"
@@ -52,6 +56,9 @@ env_logger = "0.11"
 
 # Error handling
 anyhow = "1"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = { version = "0.1", optional = true }
 
 [profile.release]
 strip = true
