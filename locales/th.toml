@@ -197,3 +197,7 @@ tables_browse = "เรียกดู..."
 tables_folder_picker = "เลือกไดเรกทอรีโต๊ะ"
 tables_valid = "ไดเรกทอรีถูกต้อง — พบ %{count} โฟลเดอร์"
 tables_invalid = "ไดเรกทอรีนี้ไม่มีอยู่"
+
+# Autostart
+autostart_label = "เปิด PinReady อัตโนมัติเมื่อเริ่มระบบ"
+autostart_hint = "แนะนำสำหรับตู้พินบอลเฉพาะ PinReady จะเริ่มทำงานเมื่อระบบบูต"

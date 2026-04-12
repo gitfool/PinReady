@@ -197,3 +197,7 @@ tables_browse = "Bladeren..."
 tables_folder_picker = "Tafelmap selecteren"
 tables_valid = "Geldige map — %{count} mappen gevonden"
 tables_invalid = "Deze map bestaat niet"
+
+# Autostart
+autostart_label = "PinReady automatisch starten bij het opstarten"
+autostart_hint = "Aanbevolen voor een dedicated pincab. PinReady start wanneer het systeem opstart."

@@ -197,3 +197,7 @@ tables_browse = "ब्राउज़..."
 tables_folder_picker = "टेबल डायरेक्टरी चुनें"
 tables_valid = "वैध डायरेक्टरी — %{count} फ़ोल्डर मिले"
 tables_invalid = "यह डायरेक्टरी मौजूद नहीं है"
+
+# Autostart
+autostart_label = "स्टार्टअप पर PinReady स्वचालित रूप से लॉन्च करें"
+autostart_hint = "समर्पित पिनकैब के लिए अनुशंसित। सिस्टम बूट होने पर PinReady शुरू होगा।"

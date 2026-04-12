@@ -197,3 +197,7 @@ tables_browse = "Обзор..."
 tables_folder_picker = "Выберите каталог столов"
 tables_valid = "Корректный каталог — найдено папок: %{count}"
 tables_invalid = "Этот каталог не существует"
+
+# Autostart
+autostart_label = "Запускать PinReady автоматически при старте"
+autostart_hint = "Рекомендуется для выделенного пинкаба. PinReady запустится при загрузке системы."

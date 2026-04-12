@@ -197,3 +197,7 @@ tables_browse = "Selaa..."
 tables_folder_picker = "Valitse pöytähakemisto"
 tables_valid = "Kelvollinen hakemisto — %{count} kansiota löydetty"
 tables_invalid = "Tätä hakemistoa ei ole olemassa"
+
+# Autostart
+autostart_label = "Käynnistä PinReady automaattisesti käynnistyksessä"
+autostart_hint = "Suositellaan omistettua pincabia varten. PinReady käynnistyy järjestelmän käynnistyessä."

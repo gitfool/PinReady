@@ -197,3 +197,7 @@ tables_browse = "تصفح..."
 tables_folder_picker = "اختر مجلد الطاولات"
 tables_valid = "مجلد صالح — %{count} مجلد(مجلدات) تم العثور عليها"
 tables_invalid = "هذا المجلد غير موجود"
+
+# Autostart
+autostart_label = "تشغيل PinReady تلقائياً عند بدء التشغيل"
+autostart_hint = "موصى به لجهاز pincab مخصص. سيبدأ PinReady عند تشغيل النظام."

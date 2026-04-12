@@ -197,3 +197,7 @@ tables_browse = "瀏覽..."
 tables_folder_picker = "選擇球台目錄"
 tables_valid = "有效目錄 — 找到 %{count} 個資料夾"
 tables_invalid = "此目錄不存在"
+
+# Autostart
+autostart_label = "開機自動啟動 PinReady"
+autostart_hint = "推薦用於專用彈珠台機櫃。PinReady 將在系統啟動時自動執行。"

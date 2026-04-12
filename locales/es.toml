@@ -197,3 +197,7 @@ tables_browse = "Examinar..."
 tables_folder_picker = "Seleccionar directorio de mesas"
 tables_valid = "Directorio válido — %{count} carpetas encontradas"
 tables_invalid = "Este directorio no existe"
+
+# Autostart
+autostart_label = "Iniciar PinReady automáticamente al arrancar"
+autostart_hint = "Recomendado para un pincab dedicado. PinReady se iniciará con el sistema."

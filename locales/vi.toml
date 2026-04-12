@@ -197,3 +197,7 @@ tables_browse = "Duyệt..."
 tables_folder_picker = "Chọn thư mục bàn"
 tables_valid = "Thư mục hợp lệ — tìm thấy %{count} thư mục"
 tables_invalid = "Thư mục này không tồn tại"
+
+# Autostart
+autostart_label = "Khởi chạy PinReady tự động khi khởi động"
+autostart_hint = "Khuyến nghị cho pincab chuyên dụng. PinReady sẽ khởi chạy khi hệ thống khởi động."

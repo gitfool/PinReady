@@ -66,6 +66,9 @@ env_logger = "0.11"
 # Internationalization
 rust-i18n = "3"
 
+# Fonts for non-Latin scripts (Arabic, CJK, Devanagari, Thai, etc.)
+noto-fonts-dl = { version = "0.1.2", features = ["ar", "hi", "bn", "zh", "zh_tw", "ja", "ko", "th", "ur"] }
+
 # Error handling
 anyhow = "1"
 

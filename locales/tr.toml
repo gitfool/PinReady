@@ -197,3 +197,7 @@ tables_browse = "Gözat..."
 tables_folder_picker = "Masa dizinini seç"
 tables_valid = "Geçerli dizin — %{count} klasör bulundu"
 tables_invalid = "Bu dizin mevcut değil"
+
+# Autostart
+autostart_label = "PinReady'yi başlangıçta otomatik başlat"
+autostart_hint = "Özel bir pincab için önerilir. PinReady sistem başladığında otomatik açılır."

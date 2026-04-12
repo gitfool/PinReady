@@ -197,3 +197,7 @@ tables_browse = "Jelajahi..."
 tables_folder_picker = "Pilih direktori meja"
 tables_valid = "Direktori valid — %{count} folder ditemukan"
 tables_invalid = "Direktori ini tidak ada"
+
+# Autostart
+autostart_label = "Jalankan PinReady secara otomatis saat startup"
+autostart_hint = "Direkomendasikan untuk pincab khusus. PinReady akan berjalan saat sistem dinyalakan."

@@ -197,3 +197,7 @@ tables_browse = "Przeglądaj..."
 tables_folder_picker = "Wybierz katalog stołów"
 tables_valid = "Prawidłowy katalog — znaleziono %{count} folderów"
 tables_invalid = "Ten katalog nie istnieje"
+
+# Autostart
+autostart_label = "Uruchamiaj PinReady automatycznie przy starcie"
+autostart_hint = "Zalecane dla dedykowanego pincaba. PinReady uruchomi się przy starcie systemu."

@@ -197,3 +197,7 @@ tables_browse = "Prehľadávať..."
 tables_folder_picker = "Vybrať adresár stolov"
 tables_valid = "Platný adresár — nájdených %{count} priečinkov"
 tables_invalid = "Tento adresár neexistuje"
+
+# Autostart
+autostart_label = "Spustiť PinReady automaticky pri štarte"
+autostart_hint = "Odporúčané pre dedikovaný pincab. PinReady sa spustí pri štarte systému."

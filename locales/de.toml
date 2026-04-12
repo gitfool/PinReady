@@ -197,3 +197,7 @@ tables_browse = "Durchsuchen..."
 tables_folder_picker = "Tischverzeichnis auswählen"
 tables_valid = "Gültiges Verzeichnis — %{count} Ordner gefunden"
 tables_invalid = "Dieses Verzeichnis existiert nicht"
+
+# Autostart
+autostart_label = "PinReady automatisch beim Start ausführen"
+autostart_hint = "Empfohlen für einen dedizierten Pincab. PinReady startet beim Systemstart."

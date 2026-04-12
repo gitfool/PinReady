@@ -197,3 +197,7 @@ tables_browse = "براؤز..."
 tables_folder_picker = "ٹیبل ڈائریکٹری منتخب کریں"
 tables_valid = "درست ڈائریکٹری — %{count} فولڈرز ملے"
 tables_invalid = "یہ ڈائریکٹری موجود نہیں ہے"
+
+# Autostart
+autostart_label = "اسٹارٹ اپ پر PinReady خود بخود شروع کریں"
+autostart_hint = "مخصوص پن کیب کے لیے تجویز کردہ۔ سسٹم شروع ہونے پر PinReady چلے گا۔"

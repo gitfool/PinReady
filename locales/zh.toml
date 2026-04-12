@@ -197,3 +197,7 @@ tables_browse = "浏览..."
 tables_folder_picker = "选择球台目录"
 tables_valid = "有效目录 — 找到 %{count} 个文件夹"
 tables_invalid = "此目录不存在"
+
+# Autostart
+autostart_label = "开机自动启动 PinReady"
+autostart_hint = "推荐用于专用弹球机柜。PinReady 将在系统启动时自动运行。"

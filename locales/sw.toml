@@ -197,3 +197,7 @@ tables_browse = "Vinjari..."
 tables_folder_picker = "Chagua saraka ya meza"
 tables_valid = "Saraka halali — folda %{count} zimepatikana"
 tables_invalid = "Saraka hii haipo"
+
+# Autostart
+autostart_label = "Zindua PinReady kiotomatiki wakati wa kuanza"
+autostart_hint = "Inapendekezwa kwa pincab iliyojitolea. PinReady itaanza mfumo unapoanza."

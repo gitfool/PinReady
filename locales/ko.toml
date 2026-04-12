@@ -197,3 +197,7 @@ tables_browse = "찾아보기..."
 tables_folder_picker = "테이블 디렉토리 선택"
 tables_valid = "유효한 디렉토리 — %{count}개 폴더 발견"
 tables_invalid = "이 디렉토리는 존재하지 않습니다"
+
+# Autostart
+autostart_label = "시작 시 PinReady 자동 실행"
+autostart_hint = "전용 핀볼 캐비닛에 권장됩니다. 시스템 부팅 시 PinReady가 시작됩니다."

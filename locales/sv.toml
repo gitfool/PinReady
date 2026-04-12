@@ -197,3 +197,7 @@ tables_browse = "Bläddra..."
 tables_folder_picker = "Välj bordkatalog"
 tables_valid = "Giltig katalog — %{count} mappar hittade"
 tables_invalid = "Denna katalog finns inte"
+
+# Autostart
+autostart_label = "Starta PinReady automatiskt vid uppstart"
+autostart_hint = "Rekommenderas för en dedikerad pincab. PinReady startar när systemet startar."

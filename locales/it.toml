@@ -197,3 +197,7 @@ tables_browse = "Sfoglia..."
 tables_folder_picker = "Seleziona directory dei tavoli"
 tables_valid = "Directory valida — %{count} cartelle trovate"
 tables_invalid = "Questa directory non esiste"
+
+# Autostart
+autostart_label = "Avvia PinReady automaticamente all'avvio"
+autostart_hint = "Consigliato per un pincab dedicato. PinReady si avvierà all'accensione del sistema."

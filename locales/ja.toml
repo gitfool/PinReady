@@ -197,3 +197,7 @@ tables_browse = "参照..."
 tables_folder_picker = "テーブルディレクトリを選択"
 tables_valid = "有効なディレクトリ — %{count} フォルダ検出"
 tables_invalid = "このディレクトリは存在しません"
+
+# Autostart
+autostart_label = "起動時にPinReadyを自動的に起動する"
+autostart_hint = "専用ピンボールキャビネットに推奨。システム起動時にPinReadyが起動します。"

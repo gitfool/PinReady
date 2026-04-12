@@ -197,3 +197,7 @@ tables_browse = "ব্রাউজ..."
 tables_folder_picker = "টেবিল ডিরেক্টরি নির্বাচন করুন"
 tables_valid = "বৈধ ডিরেক্টরি — %{count}টি ফোল্ডার পাওয়া গেছে"
 tables_invalid = "এই ডিরেক্টরি বিদ্যমান নেই"
+
+# Autostart
+autostart_label = "স্টার্টআপে PinReady স্বয়ংক্রিয়ভাবে চালু করুন"
+autostart_hint = "ডেডিকেটেড পিনক্যাবের জন্য প্রস্তাবিত। সিস্টেম বুট হলে PinReady শুরু হবে।"
