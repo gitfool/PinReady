@@ -26,6 +26,7 @@ display-info = "0.5"
 
 # Config
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ini-preserve = "0.1.1"
 
 # Database
@@ -47,12 +48,23 @@ base64 = "0.22"
 # Audio decoding (OGG Vorbis → PCM for SDL3)
 symphonia = { version = "0.5", default-features = false, features = ["ogg", "vorbis"] }
 
+# HTTP (GitHub API + release download)
+ureq = "3"
+
+# Archive extraction (release downloads)
+zip = "8"
+flate2 = "1"
+tar = "0.4"
+
 # Threading
 crossbeam-channel = "0.5"
 
 # Logging
 log = "0.4"
 env_logger = "0.11"
+
+# Internationalization
+rust-i18n = "3"
 
 # Error handling
 anyhow = "1"

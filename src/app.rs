@@ -5,9 +5,12 @@ use std::sync::Arc;
 use crate::audio::{self, AudioCommand, AudioConfig, Sound3DMode};
 use crate::config::VpxConfig;
 use crate::db::Database;
+use crate::i18n::{self, LANGUAGE_OPTIONS};
 use crate::inputs::{self, CapturedInput, InputAction, JoystickEvent};
 use crate::screens::{self, DisplayInfo, DisplayRole};
 use crate::tilt::TiltConfig;
+use crate::updater::{self, ReleaseInfo, UpdateProgress};
+use rust_i18n::t;
 
 /// Application mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,15 +64,15 @@ pub enum WizardPage {
 }
 
 impl WizardPage {
-    fn title(&self) -> &'static str {
+    fn title(&self) -> String {
         match self {
-            Self::Screens => "Ecrans",
-            Self::Rendering => "Rendu",
-            Self::Inputs => "Inputs",
-            Self::Tilt => "Tilt / Nudge",
-            Self::Audio => "Audio",
-            Self::TablesDir => "Tables",
-        }
+            Self::Screens => t!("page_screens"),
+            Self::Rendering => t!("page_rendering"),
+            Self::Inputs => t!("page_inputs"),
+            Self::Tilt => t!("page_tilt"),
+            Self::Audio => t!("page_audio"),
+            Self::TablesDir => t!("page_tables"),
+        }.to_string()
     }
 
     fn index(&self) -> usize {
@@ -98,6 +101,15 @@ impl WizardPage {
     fn count() -> usize {
         6
     }
+}
+
+/// How the VPinballX executable is provided
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VpxInstallMode {
+    /// Download from GitHub fork release
+    Auto,
+    /// User provides the path manually
+    Manual,
 }
 
 /// State for input capture
@@ -189,6 +201,19 @@ pub struct App {
     // Rescan button: long-press (3s) = full regeneration, short click = incremental
     rescan_press_start: Option<std::time::Instant>,
 
+    // Language
+    selected_language: usize,
+
+    // VPX updater
+    vpx_install_mode: VpxInstallMode,
+    vpx_fork_repo: String,
+    vpx_installed_tag: String,
+    vpx_latest_release: Option<ReleaseInfo>,
+    update_check_rx: Option<crossbeam_channel::Receiver<anyhow::Result<ReleaseInfo>>>,
+    update_progress_rx: Option<crossbeam_channel::Receiver<UpdateProgress>>,
+    update_downloading: bool,
+    update_progress: (u64, u64), // (current, total)
+    update_error: Option<String>,
 }
 
 impl App {
@@ -267,10 +292,21 @@ impl App {
         audio.load_from_config(&config);
         audio.available_devices = AudioConfig::enumerate_devices();
 
-        // Load VPinballX executable path
+        // Load VPinballX executable path and updater config
         let vpx_exe_path = db
             .get_config("vpx_exe_path")
-            .unwrap_or_else(|| "/home/pincab/VPinballX/VPinballX_BGFX".to_string());
+            .unwrap_or_default();
+        let vpx_fork_repo = db
+            .get_config("vpx_fork_repo")
+            .unwrap_or_else(|| updater::DEFAULT_FORK_REPO.to_string());
+        let vpx_installed_tag = db
+            .get_config("vpx_installed_tag")
+            .unwrap_or_default();
+        let vpx_install_mode = if db.get_config("vpx_install_mode").as_deref() == Some("manual") {
+            VpxInstallMode::Manual
+        } else {
+            VpxInstallMode::Auto
+        };
 
         // Load tables directory
         let tables_dir = db
@@ -281,6 +317,40 @@ impl App {
         let joystick_rx = inputs::spawn_joystick_thread();
 
         let audio_cmd_tx = audio::spawn_audio_thread();
+
+        // Language detection: from DB, or system, or default English
+        let selected_language = if let Some(saved_lang) = db.get_config("language") {
+            LANGUAGE_OPTIONS.iter().position(|(c, _)| *c == saved_lang).unwrap_or_else(i18n::detect_system_language)
+        } else {
+            i18n::detect_system_language()
+        };
+        let (lang_code, _) = LANGUAGE_OPTIONS[selected_language];
+        i18n::set_locale(lang_code);
+        log::info!("Language: {} ({})", lang_code, LANGUAGE_OPTIONS[selected_language].1);
+
+        // Spawn background update check (throttled to once per hour)
+        let update_check_rx = {
+            let last_check = db.get_config("vpx_last_check").unwrap_or_default();
+            let should_check = last_check.parse::<i64>().map_or(true, |ts| {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0);
+                now - ts > 3600
+            });
+            if should_check && !vpx_fork_repo.is_empty() {
+                let repo = vpx_fork_repo.clone();
+                log::info!("Checking for VPinballX updates from {repo}...");
+                let (tx, rx) = crossbeam_channel::bounded(1);
+                std::thread::spawn(move || {
+                    let result = updater::check_latest_release(&repo);
+                    let _ = tx.send(result);
+                });
+                Some(rx)
+            } else {
+                None
+            }
+        };
 
         let mut s = Self {
             mode: if start_in_wizard { AppMode::Wizard } else { AppMode::Launcher },
@@ -335,6 +405,16 @@ impl App {
             vpx_error_log: None,
             quit_after_ms: None,
             rescan_press_start: None,
+            selected_language,
+            vpx_install_mode,
+            vpx_fork_repo,
+            vpx_installed_tag,
+            vpx_latest_release: None,
+            update_check_rx,
+            update_progress_rx: None,
+            update_downloading: false,
+            update_progress: (0, 0),
+            update_error: None,
         };
         // Pre-scan tables if starting in launcher mode
         if !start_in_wizard {
@@ -411,7 +491,13 @@ impl App {
     }
 
     fn save_screens(&mut self) {
-        // Save VPinballX executable path
+        // Save VPX install mode and path
+        let mode_str = match self.vpx_install_mode {
+            VpxInstallMode::Auto => "auto",
+            VpxInstallMode::Manual => "manual",
+        };
+        let _ = self.db.set_config("vpx_install_mode", mode_str);
+        let _ = self.db.set_config("vpx_fork_repo", &self.vpx_fork_repo);
         if let Err(e) = self.db.set_config("vpx_exe_path", &self.vpx_exe_path) {
             log::error!("Failed to save VPX exe path: {e}");
         }
@@ -921,6 +1007,83 @@ impl App {
         }
     }
 
+    fn process_update_check(&mut self) {
+        // Receive update check result
+        if let Some(rx) = &self.update_check_rx {
+            if let Ok(result) = rx.try_recv() {
+                match result {
+                    Ok(release) => {
+                        log::info!("Latest release: {} (installed: {})", release.tag, self.vpx_installed_tag);
+                        // Update last check timestamp
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs().to_string())
+                            .unwrap_or_default();
+                        let _ = self.db.set_config("vpx_last_check", &now);
+                        if release.tag != self.vpx_installed_tag {
+                            self.vpx_latest_release = Some(release);
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Update check failed: {e}");
+                    }
+                }
+                self.update_check_rx = None;
+            }
+        }
+        // Receive download progress
+        if let Some(rx) = &self.update_progress_rx {
+            while let Ok(progress) = rx.try_recv() {
+                match progress {
+                    UpdateProgress::Downloading(current, total) => {
+                        self.update_progress = (current, total);
+                    }
+                    UpdateProgress::Extracting => {
+                        self.update_downloading = true;
+                    }
+                    UpdateProgress::Done(exe_path) => {
+                        let path_str = exe_path.display().to_string();
+                        self.vpx_exe_path = path_str.clone();
+                        let _ = self.db.set_config("vpx_exe_path", &path_str);
+                        if let Some(rel) = &self.vpx_latest_release {
+                            self.vpx_installed_tag = rel.tag.clone();
+                            let _ = self.db.set_config("vpx_installed_tag", &rel.tag);
+                        }
+                        self.update_downloading = false;
+                        self.update_progress = (0, 0);
+                        self.vpx_latest_release = None;
+                        self.update_progress_rx = None;
+                        self.update_error = None;
+                        log::info!("VPinballX installed to: {}", path_str);
+                        return;
+                    }
+                    UpdateProgress::Error(msg) => {
+                        self.update_downloading = false;
+                        self.update_error = Some(msg.clone());
+                        self.update_progress_rx = None;
+                        log::error!("VPinballX update failed: {}", msg);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    fn start_vpx_download(&mut self, release: &ReleaseInfo) {
+        let install_dir = updater::default_install_dir();
+        let release = release.clone();
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.update_progress_rx = Some(rx);
+        self.update_downloading = true;
+        self.update_progress = (0, release.asset_size);
+        self.update_error = None;
+        std::thread::spawn(move || {
+            if let Err(e) = updater::download_and_install(&release, &install_dir, tx.clone()) {
+                let _ = tx.send(UpdateProgress::Error(format!("{e}")));
+            }
+        });
+    }
+
     #[allow(deprecated)]
     fn render_launcher(&mut self, ui: &mut egui::Ui) {
         // Install image loaders once
@@ -930,8 +1093,12 @@ impl App {
         self.preload_images(ui.ctx());
         self.handle_launcher_joystick(ui);
         self.process_vpx_status();
-        // Only repaint when needed: bg extraction in progress, VPX running, or joystick connected
-        if self.bg_rx.is_some() || self.vpx_running.load(Ordering::Relaxed) || self.joystick_rx.is_some() {
+        self.process_update_check();
+        // Only repaint when needed: bg extraction in progress, VPX running, joystick connected, or update in progress
+        if self.bg_rx.is_some() || self.vpx_running.load(Ordering::Relaxed)
+            || self.joystick_rx.is_some() || self.update_downloading
+            || self.update_check_rx.is_some()
+        {
             ui.ctx().request_repaint();
         }
 
@@ -999,20 +1166,46 @@ impl App {
         }
 
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("PinReady — Lanceur de tables").size(24.0).strong());
+            ui.label(egui::RichText::new(t!("launcher_title")).size(24.0).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Quitter").clicked() {
+                if ui.button(t!("launcher_quit")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
-                if ui.button("Configuration").clicked() {
+                if ui.button(t!("launcher_config")).clicked() {
                     self.mode = AppMode::Wizard;
+                }
+                // Update button — visible when a new release is available
+                if self.update_downloading {
+                    let (current, total) = self.update_progress;
+                    if total > 0 {
+                        let pct = (current as f32 / total as f32 * 100.0) as u32;
+                        let mb = current / (1024 * 1024);
+                        let total_mb = total / (1024 * 1024);
+                        ui.add(egui::ProgressBar::new(current as f32 / total as f32)
+                            .text(t!("update_progress", mb = mb, total = total_mb, pct = pct)));
+                    } else {
+                        ui.spinner();
+                        ui.label(t!("update_extracting"));
+                    }
+                } else if let Some(ref release) = self.vpx_latest_release.clone() {
+                    let btn = ui.button(
+                        egui::RichText::new(t!("update_button", tag = release.tag.as_str()))
+                            .color(egui::Color32::from_rgb(100, 200, 100)),
+                    );
+                    if btn.clicked() {
+                        self.start_vpx_download(&release);
+                    }
+                }
+                if let Some(ref err) = self.update_error {
+                    ui.colored_label(egui::Color32::from_rgb(255, 100, 100),
+                        t!("update_error", msg = err.as_str()));
                 }
                 let rescan_label = if let Some(start) = self.rescan_press_start {
                     let held = start.elapsed().as_secs_f32();
                     let pct = ((held / 3.0) * 100.0).min(100.0) as u32;
-                    format!("Reset... {}%", pct)
+                    t!("launcher_reset_pct", pct = pct).to_string()
                 } else {
-                    "Rescanner".to_string()
+                    t!("launcher_rescan").to_string()
                 };
                 let rescan_btn = ui.button(&rescan_label);
                 if rescan_btn.is_pointer_button_down_on() {
@@ -1065,13 +1258,13 @@ impl App {
         // VPX error popup
         if self.vpx_error_log.is_some() {
             let mut close = false;
-            egui::Window::new("VPinballX — Erreur")
+            egui::Window::new(t!("launcher_error_title").to_string())
                 .collapsible(false)
                 .resizable(true)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .default_size([600.0, 400.0])
                 .show(ui.ctx(), |ui| {
-                    ui.label(egui::RichText::new("VPinballX a quitte de maniere inattendue.").size(16.0).strong().color(egui::Color32::RED));
+                    ui.label(egui::RichText::new(t!("launcher_vpx_crashed").to_string()).size(16.0).strong().color(egui::Color32::RED));
                     ui.add_space(8.0);
                     if let Some(ref log) = self.vpx_error_log {
                         egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
@@ -1079,7 +1272,7 @@ impl App {
                         });
                     }
                     ui.add_space(8.0);
-                    if ui.button("Fermer").clicked() {
+                    if ui.button(t!("launcher_close").to_string()).clicked() {
                         close = true;
                     }
                 });
@@ -1090,16 +1283,16 @@ impl App {
 
         // Search filter
         ui.horizontal(|ui| {
-            ui.label("Rechercher :");
+            ui.label(t!("launcher_search").to_string());
             if ui.text_edit_singleline(&mut self.table_filter).changed() {
                 self.table_filter_lower = self.table_filter.to_lowercase();
             }
-            ui.label(format!("{} table(s)", self.tables.len()));
+            ui.label(t!("launcher_table_count", count = self.tables.len()).to_string());
         });
         ui.add_space(8.0);
 
         if self.tables.is_empty() {
-            ui.label("Aucune table trouvee. Verifiez le repertoire des tables dans la configuration.");
+            ui.label(t!("launcher_no_tables").to_string());
             return;
         }
 
@@ -1363,39 +1556,132 @@ impl App {
     // --- Page rendering ---
 
     fn render_screens_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Configuration des écrans");
+        ui.heading(t!("screens_heading"));
         ui.add_space(8.0);
 
-        // VPinballX executable path
-        ui.label("Chemin vers l'exécutable VPinballX :");
+        // Language selector
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.vpx_exe_path).desired_width(400.0));
-            if ui.button("Parcourir...").clicked() {
-                if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Sélectionner l'exécutable VPinballX")
-                    .pick_file()
-                {
-                    self.vpx_exe_path = path.display().to_string();
-                }
+            ui.label(egui::RichText::new("Langue / Language").size(14.0));
+            ui.add_space(8.0);
+            let prev_lang = self.selected_language;
+            let current_label = LANGUAGE_OPTIONS
+                .get(self.selected_language)
+                .map(|(_, l)| *l)
+                .unwrap_or("English");
+            egui::ComboBox::from_id_salt("lang_combo")
+                .selected_text(current_label)
+                .show_ui(ui, |ui| {
+                    for (idx, (_code, label)) in LANGUAGE_OPTIONS.iter().enumerate() {
+                        ui.selectable_value(&mut self.selected_language, idx, *label);
+                    }
+                });
+            if self.selected_language != prev_lang {
+                let (code, _) = LANGUAGE_OPTIONS[self.selected_language];
+                i18n::set_locale(code);
+                let _ = self.db.set_config("language", code);
             }
         });
-        let vpx_exists = std::path::Path::new(&self.vpx_exe_path).is_file();
-        if !vpx_exists && !self.vpx_exe_path.is_empty() {
-            ui.colored_label(egui::Color32::from_rgb(255, 100, 100), "⚠ Fichier introuvable");
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        // VPinballX installation
+        self.process_update_check();
+        ui.label(egui::RichText::new(t!("vpx_install_title")).strong());
+        ui.add_space(4.0);
+
+        ui.radio_value(&mut self.vpx_install_mode, VpxInstallMode::Auto,
+            t!("vpx_auto_install"));
+        if self.vpx_install_mode == VpxInstallMode::Auto {
+            ui.indent("auto_install", |ui| {
+                if let Some(ref release) = self.vpx_latest_release {
+                    ui.label(t!("vpx_version_available", tag = release.tag.as_str()));
+                    let size_mb = release.asset_size / (1024 * 1024);
+                    ui.label(t!("vpx_artifact_info", name = release.asset_name.as_str(), size = size_mb));
+                } else if self.update_check_rx.is_some() {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(t!("vpx_checking"));
+                    });
+                    ui.ctx().request_repaint();
+                } else if !self.vpx_installed_tag.is_empty() {
+                    ui.label(t!("vpx_version_installed", tag = self.vpx_installed_tag.as_str()));
+                } else {
+                    ui.label(t!("vpx_no_version"));
+                }
+
+                if self.update_downloading {
+                    let (current, total) = self.update_progress;
+                    if total > 0 {
+                        let pct = current as f32 / total as f32;
+                        let mb = current / (1024 * 1024);
+                        let total_mb = total / (1024 * 1024);
+                        ui.add(egui::ProgressBar::new(pct)
+                            .text(format!("{mb}/{total_mb} Mo")));
+                    } else {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(t!("vpx_extracting"));
+                        });
+                    }
+                    ui.ctx().request_repaint();
+                } else if let Some(ref release) = self.vpx_latest_release.clone() {
+                    if release.tag != self.vpx_installed_tag {
+                        if ui.button(t!("vpx_install_button")).clicked() {
+                            self.start_vpx_download(&release);
+                        }
+                    }
+                }
+
+                if let Some(ref err) = self.update_error {
+                    ui.colored_label(egui::Color32::from_rgb(255, 100, 100),
+                        t!("vpx_install_error", msg = err.as_str()));
+                }
+
+                let install_dir = updater::default_install_dir();
+                ui.label(egui::RichText::new(
+                    t!("vpx_install_dir", path = install_dir.display().to_string()))
+                    .weak());
+            });
         }
+
+        ui.radio_value(&mut self.vpx_install_mode, VpxInstallMode::Manual,
+            t!("vpx_manual_install"));
+        if self.vpx_install_mode == VpxInstallMode::Manual {
+            ui.indent("manual_install", |ui| {
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.vpx_exe_path).desired_width(400.0));
+                    if ui.button(t!("vpx_browse")).clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .set_title(t!("vpx_file_picker"))
+                            .pick_file()
+                        {
+                            self.vpx_exe_path = path.display().to_string();
+                        }
+                    }
+                });
+                let vpx_exists = std::path::Path::new(&self.vpx_exe_path).is_file();
+                if !vpx_exists && !self.vpx_exe_path.is_empty() {
+                    ui.colored_label(egui::Color32::from_rgb(255, 100, 100), format!("⚠ {}", t!("vpx_file_not_found")));
+                }
+            });
+        }
+
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(t!("vpx_validated_on")).weak().italics());
         ui.add_space(12.0);
         ui.separator();
         ui.add_space(8.0);
 
         // Screen count selection
-        ui.label("Nombre d'écrans pour votre cabinet :");
+        ui.label(t!("screens_count_label"));
         ui.horizontal(|ui| {
             for n in 1..=4 {
                 let label = match n {
-                    1 => "1 écran",
-                    2 => "2 écrans",
-                    3 => "3 écrans",
-                    _ => "4 écrans",
+                    1 => t!("screens_1"),
+                    2 => t!("screens_2"),
+                    3 => t!("screens_3"),
+                    _ => t!("screens_4"),
                 };
                 if ui.radio_value(&mut self.screen_count, n, label).changed() {
                     // Re-assign roles based on new screen count
@@ -1414,7 +1700,7 @@ impl App {
         ui.add_space(8.0);
 
         // View mode
-        ui.label("Mode d'affichage :");
+        ui.label(t!("screens_display_mode"));
         ui.horizontal(|ui| {
             ui.radio_value(&mut self.view_mode, 0, "Desktop");
             ui.radio_value(&mut self.view_mode, 1, "Cabinet");
@@ -1423,13 +1709,13 @@ impl App {
 
         ui.add_space(8.0);
 
-        ui.checkbox(&mut self.disable_touch, "Desactiver l'ecran tactile (rustdesk, VNC...)");
+        ui.checkbox(&mut self.disable_touch, t!("screens_disable_touch"));
 
         ui.add_space(12.0);
 
         // Display table
         if self.displays.is_empty() {
-            ui.label("Aucun écran détecté.");
+            ui.label(t!("screens_no_displays"));
             return;
         }
 
@@ -1437,11 +1723,11 @@ impl App {
             .striped(true)
             .min_col_width(80.0)
             .show(ui, |ui| {
-                ui.strong("Ecran");
-                ui.strong("Resolution");
-                ui.strong("Hz");
-                ui.strong("Taille physique");
-                ui.strong("Role");
+                ui.strong(t!("screens_col_screen"));
+                ui.strong(t!("screens_col_resolution"));
+                ui.strong(t!("screens_col_hz"));
+                ui.strong(t!("screens_col_size"));
+                ui.strong(t!("screens_col_role"));
                 ui.end_row();
 
                 let available_roles: Vec<DisplayRole> = DisplayRole::all()
@@ -1492,9 +1778,9 @@ impl App {
         // Only show cabinet dimensions in Cabinet mode
         if self.view_mode == 1 {
             ui.add_space(16.0);
-            ui.strong("Dimensions physiques du cabinet (pour la projection 3D)");
+            ui.strong(t!("cabinet_dimensions"));
             ui.add_space(4.0);
-            ui.label("Deplacez les poignees sur le schema ou modifiez les valeurs a droite.");
+            ui.label(t!("cabinet_drag_hint"));
             ui.add_space(8.0);
 
             // Layout: schema on the left, values on the right
@@ -1707,45 +1993,45 @@ impl App {
                 // === Values panel on the right ===
                 ui.vertical(|ui| {
                     ui.add_space(8.0);
-                    ui.strong("Valeurs");
+                    ui.strong(t!("cabinet_values"));
                     ui.add_space(8.0);
 
-                    ui.label("Lockbar largeur (cm) :");
+                    ui.label(t!("cabinet_lockbar_width"));
                     ui.add(egui::DragValue::new(&mut self.lockbar_width).range(10.0..=150.0).speed(1.0).suffix(" cm"));
                     ui.add_space(4.0);
 
-                    ui.label("Lockbar hauteur du sol (cm) :");
+                    ui.label(t!("cabinet_lockbar_height"));
                     ui.add(egui::DragValue::new(&mut self.lockbar_height).range(0.0..=250.0).speed(1.0).suffix(" cm"));
                     ui.add_space(4.0);
 
-                    ui.label("Inclinaison playfield (deg) :");
+                    ui.label(t!("cabinet_screen_inclination"));
                     ui.add(egui::DragValue::new(&mut self.screen_inclination).range(-30.0..=30.0).speed(0.5).suffix(" deg"));
                     ui.add_space(4.0);
 
-                    ui.label("Taille du joueur (cm) :");
+                    ui.label(t!("cabinet_player_height"));
                     ui.add(egui::DragValue::new(&mut self.player_height).range(75.0..=250.0).speed(1.0).suffix(" cm"));
                     ui.add_space(4.0);
 
-                    ui.label("Distance joueur-lockbar Y (cm) :");
+                    ui.label(t!("cabinet_player_distance"));
                     ui.add(egui::DragValue::new(&mut self.player_y).range(-70.0..=30.0).speed(1.0).suffix(" cm"));
                     ui.add_space(4.0);
 
-                    ui.label("Decalage gauche/droite X (cm) :");
+                    ui.label(t!("cabinet_player_offset"));
                     ui.add(egui::DragValue::new(&mut self.player_x).range(-30.0..=30.0).speed(1.0).suffix(" cm"));
                     ui.add_space(12.0);
 
                     ui.separator();
-                    ui.label(format!("Hauteur yeux (Z) calculee : {:.0} cm", self.player_z));
-                    ui.label("(taille - 12cm - hauteur lockbar)");
+                    ui.label(t!("cabinet_eye_height", value = format!("{:.0}", self.player_z)));
+                    ui.label(t!("cabinet_eye_formula"));
                 });
             });
         }
     }
 
     fn render_rendering_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Rendu Playfield");
+        ui.heading(t!("rendering_heading"));
         ui.add_space(4.0);
-        ui.label("Parametres de rendu graphique. Recommandation: commencez par les valeurs par defaut et ajustez selon les performances.");
+        ui.label(t!("rendering_desc"));
         ui.add_space(12.0);
 
         egui::Grid::new("rendering_grid")
@@ -1753,135 +2039,135 @@ impl App {
             .striped(true)
             .show(ui, |ui| {
                 // Sync mode
-                ui.label("Synchronisation :");
+                ui.label(t!("rendering_sync"));
                 egui::ComboBox::from_id_salt("sync_mode")
                     .selected_text(match self.sync_mode {
-                        0 => "Pas de sync",
-                        1 => "VSync (recommande)",
-                        _ => "VSync",
+                        0 => t!("rendering_sync_none").to_string(),
+                        1 => t!("rendering_sync_vsync").to_string(),
+                        _ => t!("rendering_sync_vsync").to_string(),
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.sync_mode, 0, "Pas de sync");
-                        ui.selectable_value(&mut self.sync_mode, 1, "VSync (defaut, recommande)");
+                        ui.selectable_value(&mut self.sync_mode, 0, t!("rendering_sync_none").to_string());
+                        ui.selectable_value(&mut self.sync_mode, 1, t!("rendering_sync_vsync_default").to_string());
                     });
                 ui.end_row();
 
                 // Max framerate — auto-set from playfield refresh rate
-                ui.label("Limite FPS :");
+                ui.label(t!("rendering_fps_limit"));
                 let pf_refresh = self.displays.iter()
                     .find(|d| d.role == DisplayRole::Playfield)
                     .map(|d| d.refresh_rate)
                     .unwrap_or(60.0);
                 self.max_framerate = pf_refresh;
-                ui.label(format!("{:.2} Hz (refresh rate du playfield)", pf_refresh));
+                ui.label(t!("rendering_fps_info", hz = format!("{:.2}", pf_refresh)));
                 ui.end_row();
 
                 // Supersampling
-                ui.label("Supersampling (AA Factor) :");
+                ui.label(t!("rendering_supersampling"));
                 ui.horizontal(|ui| {
                     ui.add(egui::Slider::new(&mut self.aa_factor, 0.5..=2.0).step_by(0.25));
                     let tip = if self.aa_factor < 0.8 {
-                        "Performance++"
+                        t!("rendering_aa_perf")
                     } else if self.aa_factor <= 1.1 {
-                        "Defaut"
+                        t!("rendering_aa_default")
                     } else if self.aa_factor <= 1.5 {
-                        "Qualite+"
+                        t!("rendering_aa_quality")
                     } else {
-                        "Qualite++ (lourd)"
+                        t!("rendering_aa_quality_heavy")
                     };
-                    ui.label(tip);
+                    ui.label(tip.to_string());
                 });
                 ui.end_row();
 
                 // MSAA
-                ui.label("MSAA :");
+                ui.label(t!("rendering_msaa"));
                 egui::ComboBox::from_id_salt("msaa")
                     .selected_text(match self.msaa {
-                        0 => "Desactive",
-                        1 => "4 Samples",
-                        2 => "6 Samples",
-                        3 => "8 Samples",
-                        _ => "Desactive",
+                        0 => t!("rendering_msaa_off").to_string(),
+                        1 => t!("rendering_msaa_4").to_string(),
+                        2 => t!("rendering_msaa_6").to_string(),
+                        3 => t!("rendering_msaa_8").to_string(),
+                        _ => t!("rendering_msaa_off").to_string(),
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.msaa, 0, "Desactive (defaut)");
-                        ui.selectable_value(&mut self.msaa, 1, "4 Samples");
-                        ui.selectable_value(&mut self.msaa, 2, "6 Samples");
-                        ui.selectable_value(&mut self.msaa, 3, "8 Samples");
+                        ui.selectable_value(&mut self.msaa, 0, t!("rendering_msaa_off_default").to_string());
+                        ui.selectable_value(&mut self.msaa, 1, t!("rendering_msaa_4").to_string());
+                        ui.selectable_value(&mut self.msaa, 2, t!("rendering_msaa_6").to_string());
+                        ui.selectable_value(&mut self.msaa, 3, t!("rendering_msaa_8").to_string());
                     });
                 ui.end_row();
 
                 // Post-process AA
-                ui.label("Anti-aliasing post-traitement :");
+                ui.label(t!("rendering_fxaa"));
                 egui::ComboBox::from_id_salt("fxaa")
                     .selected_text(match self.fxaa {
-                        0 => "Desactive",
-                        1 => "Fast FXAA",
-                        2 => "Standard FXAA",
-                        3 => "Quality FXAA",
-                        4 => "Fast NFAA",
-                        5 => "Standard DLAA",
-                        6 => "Quality SMAA",
-                        7 => "Quality FAAA",
-                        _ => "Desactive",
+                        0 => t!("rendering_fxaa_off").to_string(),
+                        1 => t!("rendering_fxaa_fast").to_string(),
+                        2 => t!("rendering_fxaa_standard").to_string(),
+                        3 => t!("rendering_fxaa_quality").to_string(),
+                        4 => t!("rendering_fxaa_nfaa").to_string(),
+                        5 => t!("rendering_fxaa_dlaa").to_string(),
+                        6 => t!("rendering_fxaa_smaa").to_string(),
+                        7 => t!("rendering_fxaa_faaa").to_string(),
+                        _ => t!("rendering_fxaa_off").to_string(),
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.fxaa, 0, "Desactive (defaut)");
-                        ui.selectable_value(&mut self.fxaa, 1, "Fast FXAA");
-                        ui.selectable_value(&mut self.fxaa, 2, "Standard FXAA (recommande)");
-                        ui.selectable_value(&mut self.fxaa, 3, "Quality FXAA");
-                        ui.selectable_value(&mut self.fxaa, 4, "Fast NFAA");
-                        ui.selectable_value(&mut self.fxaa, 5, "Standard DLAA");
-                        ui.selectable_value(&mut self.fxaa, 6, "Quality SMAA");
-                        ui.selectable_value(&mut self.fxaa, 7, "Quality FAAA");
+                        ui.selectable_value(&mut self.fxaa, 0, t!("rendering_fxaa_off").to_string());
+                        ui.selectable_value(&mut self.fxaa, 1, t!("rendering_fxaa_fast").to_string());
+                        ui.selectable_value(&mut self.fxaa, 2, t!("rendering_fxaa_standard").to_string());
+                        ui.selectable_value(&mut self.fxaa, 3, t!("rendering_fxaa_quality").to_string());
+                        ui.selectable_value(&mut self.fxaa, 4, t!("rendering_fxaa_nfaa").to_string());
+                        ui.selectable_value(&mut self.fxaa, 5, t!("rendering_fxaa_dlaa").to_string());
+                        ui.selectable_value(&mut self.fxaa, 6, t!("rendering_fxaa_smaa").to_string());
+                        ui.selectable_value(&mut self.fxaa, 7, t!("rendering_fxaa_faaa").to_string());
                     });
                 ui.end_row();
 
                 // Sharpening
-                ui.label("Nettete :");
+                ui.label(t!("rendering_sharpen"));
                 egui::ComboBox::from_id_salt("sharpen")
                     .selected_text(match self.sharpen {
-                        0 => "Desactive",
-                        1 => "CAS",
-                        2 => "Bilateral CAS",
-                        _ => "Desactive",
+                        0 => t!("rendering_sharpen_off").to_string(),
+                        1 => t!("rendering_sharpen_cas").to_string(),
+                        2 => t!("rendering_sharpen_bilateral").to_string(),
+                        _ => t!("rendering_sharpen_off").to_string(),
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.sharpen, 0, "Desactive (defaut)");
-                        ui.selectable_value(&mut self.sharpen, 1, "CAS (recommande)");
-                        ui.selectable_value(&mut self.sharpen, 2, "Bilateral CAS");
+                        ui.selectable_value(&mut self.sharpen, 0, t!("rendering_sharpen_off").to_string());
+                        ui.selectable_value(&mut self.sharpen, 1, t!("rendering_sharpen_cas").to_string());
+                        ui.selectable_value(&mut self.sharpen, 2, t!("rendering_sharpen_bilateral").to_string());
                     });
                 ui.end_row();
 
                 // Reflections
-                ui.label("Qualite des reflets :");
+                ui.label(t!("rendering_reflections"));
                 egui::ComboBox::from_id_salt("pf_reflection")
                     .selected_text(match self.pf_reflection {
-                        0 => "Desactive",
-                        1 => "Billes uniquement",
-                        2 => "Statique",
-                        3 => "Statique + Billes",
-                        4 => "Statique + Dynamique (async)",
-                        5 => "Dynamique (recommande)",
-                        _ => "Dynamique",
+                        0 => t!("rendering_reflect_off").to_string(),
+                        1 => t!("rendering_reflect_balls").to_string(),
+                        2 => t!("rendering_reflect_static").to_string(),
+                        3 => t!("rendering_reflect_static_balls").to_string(),
+                        4 => t!("rendering_reflect_static_dynamic").to_string(),
+                        5 => t!("rendering_reflect_dynamic").to_string(),
+                        _ => t!("rendering_reflect_dynamic").to_string(),
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.pf_reflection, 0, "Desactive (performances++)");
-                        ui.selectable_value(&mut self.pf_reflection, 1, "Billes uniquement");
-                        ui.selectable_value(&mut self.pf_reflection, 2, "Statique (zero cout)");
-                        ui.selectable_value(&mut self.pf_reflection, 3, "Statique + Billes");
-                        ui.selectable_value(&mut self.pf_reflection, 4, "Statique + Dynamique (async)");
-                        ui.selectable_value(&mut self.pf_reflection, 5, "Dynamique (defaut, recommande)");
+                        ui.selectable_value(&mut self.pf_reflection, 0, t!("rendering_reflect_off_perf").to_string());
+                        ui.selectable_value(&mut self.pf_reflection, 1, t!("rendering_reflect_balls").to_string());
+                        ui.selectable_value(&mut self.pf_reflection, 2, t!("rendering_reflect_static_zero").to_string());
+                        ui.selectable_value(&mut self.pf_reflection, 3, t!("rendering_reflect_static_balls").to_string());
+                        ui.selectable_value(&mut self.pf_reflection, 4, t!("rendering_reflect_static_dynamic").to_string());
+                        ui.selectable_value(&mut self.pf_reflection, 5, t!("rendering_reflect_dynamic_default").to_string());
                     });
                 ui.end_row();
 
                 // Max texture dimension
-                ui.label("Taille max textures :");
+                ui.label(t!("rendering_tex_size"));
                 egui::ComboBox::from_id_salt("max_tex")
                     .selected_text(format!("{}", self.max_tex_dim))
                     .show_ui(ui, |ui| {
                         for &size in &[512, 1024, 2048, 4096, 8192, 16384] {
-                            let label = if size == 16384 { "16384 (defaut, recommande)".to_string() } else { format!("{size}") };
+                            let label = if size == 16384 { t!("rendering_tex_default").to_string() } else { format!("{size}") };
                             ui.selectable_value(&mut self.max_tex_dim, size, label);
                         }
                     });
@@ -1890,19 +2176,19 @@ impl App {
     }
 
     fn render_inputs_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Configuration des inputs");
+        ui.heading(t!("inputs_heading"));
         ui.add_space(4.0);
 
         // Detected controllers info
         if self.pinscape_id.is_some() {
-            ui.label("Pinscape detecte — plunger et nudge configures automatiquement.");
+            ui.label(t!("inputs_pinscape").to_string());
         }
         if self.gamepad_id.is_some() {
-            ui.checkbox(&mut self.use_gamepad, "Utiliser la manette pour les flippers, plunger et nudge");
+            ui.checkbox(&mut self.use_gamepad, t!("inputs_gamepad").to_string());
         }
 
         ui.add_space(4.0);
-        ui.label("Cliquez sur \"Mapper\" puis appuyez sur une touche ou un bouton. Echap = garder la valeur actuelle.");
+        ui.label(t!("inputs_instructions").to_string());
         ui.add_space(8.0);
 
         // Process keyboard input via egui (has window focus)
@@ -1965,14 +2251,14 @@ impl App {
         let conflicts = inputs::find_conflicts(&self.actions);
 
         // Essential actions
-        ui.strong("Actions essentielles");
+        ui.strong(t!("inputs_essential").to_string());
         self.render_action_list(ui, true, &conflicts);
 
         ui.add_space(8.0);
-        ui.checkbox(&mut self.show_advanced_inputs, "Afficher les actions avancées");
+        ui.checkbox(&mut self.show_advanced_inputs, t!("inputs_show_advanced").to_string());
         if self.show_advanced_inputs {
             ui.add_space(4.0);
-            ui.strong("Actions avancées");
+            ui.strong(t!("inputs_advanced").to_string());
             self.render_action_list(ui, false, &conflicts);
         }
     }
@@ -1982,8 +2268,8 @@ impl App {
             .striped(true)
             .min_col_width(120.0)
             .show(ui, |ui| {
-                ui.strong("Action");
-                ui.strong("Touche actuelle");
+                ui.strong(t!("inputs_col_action").to_string());
+                ui.strong(t!("inputs_col_binding").to_string());
                 ui.strong("");
                 ui.end_row();
 
@@ -1997,13 +2283,13 @@ impl App {
                     // Current binding display
                     let is_capturing = self.capture_state == CaptureState::Capturing(idx);
                     let binding_text = if is_capturing {
-                        "[...] Appuyez sur une touche...".to_string()
+                        t!("inputs_capturing").to_string()
                     } else if let Some(captured) = &action.mapping {
                         captured.display_name().to_string()
                     } else if action.default_scancode != sdl3_sys::everything::SDL_SCANCODE_UNKNOWN {
-                        format!("{} (défaut)", inputs::scancode_name(action.default_scancode))
+                        format!("{}{}", inputs::scancode_name(action.default_scancode), t!("inputs_default_suffix"))
                     } else {
-                        "Non assigné".to_string()
+                        t!("inputs_unassigned").to_string()
                     };
 
                     // Conflict warning
@@ -2015,7 +2301,7 @@ impl App {
                     }
 
                     // Capture button
-                    let btn_label = if is_capturing { "Annuler" } else { "Mapper" };
+                    let btn_label = if is_capturing { t!("inputs_cancel").to_string() } else { t!("inputs_map").to_string() };
                     if ui.button(btn_label).clicked() {
                         if is_capturing {
                             self.capture_state = CaptureState::Idle;
@@ -2029,9 +2315,9 @@ impl App {
     }
 
     fn render_tilt_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Sensibilite Tilt / Nudge");
+        ui.heading(t!("tilt_heading"));
         ui.add_space(4.0);
-        ui.label("Reglage de la sensibilite de votre accelerometre (Pinscape / KL25Z).");
+        ui.label(t!("tilt_desc"));
         ui.add_space(12.0);
 
         // Request repaint for live accelerometer data
@@ -2039,13 +2325,13 @@ impl App {
 
         // --- Nudge section ---
         ui.separator();
-        ui.strong("Nudge");
+        ui.strong(t!("tilt_nudge"));
         ui.add_space(4.0);
 
-        ui.checkbox(&mut self.tilt.nudge_filter, "Filtre anti-bruit");
+        ui.checkbox(&mut self.tilt.nudge_filter, t!("tilt_noise_filter"));
         ui.add_space(4.0);
 
-        ui.label("Sensibilite de l'accelerometre :");
+        ui.label(t!("tilt_sensitivity"));
         ui.add_sized([ui.available_width(), 24.0],
             egui::Slider::new(&mut self.tilt.nudge_scale, 0.1..=2.0)
                 .custom_formatter(|v, _| format!("{:.1}x", v)));
@@ -2053,10 +2339,10 @@ impl App {
 
         // --- Tilt section ---
         ui.separator();
-        ui.strong("Tilt");
+        ui.strong(t!("tilt_section"));
         ui.add_space(4.0);
 
-        ui.label("Seuil de declenchement du TILT :");
+        ui.label(t!("tilt_threshold"));
         ui.add_sized([ui.available_width(), 24.0],
             egui::Slider::new(&mut self.tilt.plumb_threshold_angle, 5.0..=60.0)
                 .suffix("°")
@@ -2064,7 +2350,7 @@ impl App {
         ui.add_space(8.0);
 
         // Single visualization circle: live accel dot + tilt threshold ring
-        ui.label("Poussez la caisse pour voir le point bouger. S'il touche l'anneau rouge = TILT :");
+        ui.label(t!("tilt_visualization"));
         ui.add_space(4.0);
         let viz_size = egui::vec2(240.0, 240.0);
         let (rect, _response) = ui.allocate_exact_size(viz_size, egui::Sense::hover());
@@ -2108,32 +2394,32 @@ impl App {
     }
 
     fn render_audio_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Configuration audio");
+        ui.heading(t!("audio_heading"));
         ui.add_space(8.0);
 
         // Device assignment
-        ui.strong("Assignation des périphériques audio");
+        ui.strong(t!("audio_device_assignment"));
         ui.add_space(4.0);
 
         egui::Grid::new("audio_devices")
             .min_col_width(150.0)
             .show(ui, |ui| {
-                ui.label("Backglass (musique, voix) :");
+                ui.label(t!("audio_backglass"));
                 egui::ComboBox::from_id_salt("device_bg")
-                    .selected_text(if self.audio.device_bg.is_empty() { "Par défaut" } else { &self.audio.device_bg })
+                    .selected_text(if self.audio.device_bg.is_empty() { t!("audio_default_device").to_string() } else { self.audio.device_bg.clone() })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.audio.device_bg, String::new(), "Par défaut");
+                        ui.selectable_value(&mut self.audio.device_bg, String::new(), t!("audio_default_device"));
                         for dev in &self.audio.available_devices {
                             ui.selectable_value(&mut self.audio.device_bg, dev.clone(), dev);
                         }
                     });
                 ui.end_row();
 
-                ui.label("Playfield (sons mécaniques) :");
+                ui.label(t!("audio_playfield"));
                 egui::ComboBox::from_id_salt("device_pf")
-                    .selected_text(if self.audio.device_pf.is_empty() { "Par défaut" } else { &self.audio.device_pf })
+                    .selected_text(if self.audio.device_pf.is_empty() { t!("audio_default_device").to_string() } else { self.audio.device_pf.clone() })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.audio.device_pf, String::new(), "Par défaut");
+                        ui.selectable_value(&mut self.audio.device_pf, String::new(), t!("audio_default_device"));
                         for dev in &self.audio.available_devices {
                             ui.selectable_value(&mut self.audio.device_pf, dev.clone(), dev);
                         }
@@ -2144,7 +2430,7 @@ impl App {
         ui.add_space(12.0);
 
         // Sound3D mode
-        ui.strong("Mode de sortie playfield");
+        ui.strong(t!("audio_output_mode"));
         ui.add_space(4.0);
         for mode in Sound3DMode::all() {
             ui.radio_value(&mut self.audio.sound_3d_mode, *mode, mode.label());
@@ -2154,79 +2440,79 @@ impl App {
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(4.0);
-        ui.strong("Cablage requis pour ce mode :");
+        ui.strong(t!("audio_wiring_required"));
         ui.add_space(4.0);
 
         match self.audio.sound_3d_mode {
             Sound3DMode::FrontStereo | Sound3DMode::RearStereo => {
-                ui.label("Carte son : Stereo (2 canaux)");
-                ui.label("  Sortie Vert (Front) -> Enceintes backglass (musique)");
-                ui.label("  Playfield : le son sort sur les memes enceintes, pas de spatialisation");
+                ui.label(t!("audio_card_stereo"));
+                ui.label(format!("  {}", t!("audio_wiring_stereo_front")));
+                ui.label(format!("  {}", t!("audio_wiring_stereo_no_spatial")));
             }
             Sound3DMode::SurroundRearLockbar => {
-                ui.label("Carte son : 5.1 (6 canaux)");
-                ui.label("  Sortie Vert  (Front L/R) -> Exciters playfield haut (cote backglass)");
-                ui.label("  Sortie Noir  (Rear L/R)  -> Exciters playfield bas (cote lockbar/joueur)");
-                ui.label("  Sortie Orange (Center/Sub) -> Caisson de basse (optionnel)");
-                ui.label("  Backglass sur un device audio separe");
+                ui.label(t!("audio_card_51"));
+                ui.label(format!("  {}", t!("audio_wiring_51_front_top")));
+                ui.label(format!("  {}", t!("audio_wiring_51_rear_bottom")));
+                ui.label(format!("  {}", t!("audio_wiring_51_center_sub")));
+                ui.label(format!("  {}", t!("audio_wiring_51_bg_separate")));
             }
             Sound3DMode::SurroundFrontLockbar => {
-                ui.label("Carte son : 5.1 (6 canaux)");
-                ui.label("  Sortie Vert  (Front L/R) -> Exciters playfield bas (cote lockbar/joueur)");
-                ui.label("  Sortie Noir  (Rear L/R)  -> Exciters playfield haut (cote backglass)");
-                ui.label("  Sortie Orange (Center/Sub) -> Caisson de basse (optionnel)");
-                ui.label("  Backglass sur un device audio separe");
+                ui.label(t!("audio_card_51"));
+                ui.label(format!("  {}", t!("audio_wiring_51_front_bottom")));
+                ui.label(format!("  {}", t!("audio_wiring_51_rear_top")));
+                ui.label(format!("  {}", t!("audio_wiring_51_center_sub")));
+                ui.label(format!("  {}", t!("audio_wiring_51_bg_separate")));
             }
             Sound3DMode::SsfLegacy | Sound3DMode::SsfNew => {
-                ui.label("Carte son : 7.1 (8 canaux) -- Configuration SSF recommandee");
+                ui.label(t!("audio_card_71"));
                 ui.add_space(4.0);
                 egui::Grid::new("wiring_grid")
                     .striped(true)
                     .min_col_width(120.0)
                     .show(ui, |ui| {
-                        ui.strong("Sortie jack");
-                        ui.strong("Canal");
-                        ui.strong("Branchement pincab");
+                        ui.strong(t!("audio_wiring_col_output"));
+                        ui.strong(t!("audio_wiring_col_channel"));
+                        ui.strong(t!("audio_wiring_col_connection"));
                         ui.end_row();
 
-                        ui.label("Vert (Front)");
-                        ui.label("FL / FR");
-                        ui.label("Enceintes backglass (musique) ou systeme 2.1");
+                        ui.label(t!("audio_wiring_71_green"));
+                        ui.label(t!("audio_wiring_71_green_ch"));
+                        ui.label(t!("audio_wiring_71_green_conn"));
                         ui.end_row();
 
-                        ui.label("Noir (Rear)");
-                        ui.label("BL / BR");
-                        ui.label("Exciters playfield haut (cote backglass)");
+                        ui.label(t!("audio_wiring_71_black"));
+                        ui.label(t!("audio_wiring_71_black_ch"));
+                        ui.label(t!("audio_wiring_71_black_conn"));
                         ui.end_row();
 
-                        ui.label("Gris (Side)");
-                        ui.label("SL / SR");
-                        ui.label("Exciters playfield bas (cote lockbar/joueur)");
+                        ui.label(t!("audio_wiring_71_grey"));
+                        ui.label(t!("audio_wiring_71_grey_ch"));
+                        ui.label(t!("audio_wiring_71_grey_conn"));
                         ui.end_row();
 
-                        ui.label("Orange (Center/Sub)");
-                        ui.label("FC / LFE");
-                        ui.label("Caisson de basse / Bass shaker (optionnel)");
+                        ui.label(t!("audio_wiring_71_orange"));
+                        ui.label(t!("audio_wiring_71_orange_ch"));
+                        ui.label(t!("audio_wiring_71_orange_conn"));
                         ui.end_row();
                     });
                 ui.add_space(4.0);
-                ui.label("Note : les couleurs des jacks peuvent varier selon la carte son !");
+                ui.label(t!("audio_wiring_note"));
             }
         }
 
         ui.add_space(12.0);
 
         // Volumes
-        ui.strong("Volumes");
+        ui.strong(t!("audio_volumes"));
         ui.add_space(4.0);
         egui::Grid::new("audio_volumes")
             .min_col_width(150.0)
             .show(ui, |ui| {
-                ui.label("Musique (Backglass) :");
+                ui.label(t!("audio_music_volume"));
                 ui.add(egui::Slider::new(&mut self.audio.music_volume, 0..=100).suffix("%"));
                 ui.end_row();
 
-                ui.label("Sons (Playfield) :");
+                ui.label(t!("audio_sound_volume"));
                 ui.add(egui::Slider::new(&mut self.audio.sound_volume, 0..=100).suffix("%"));
                 ui.end_row();
             });
@@ -2234,7 +2520,7 @@ impl App {
         ui.add_space(12.0);
 
         // === Tests audio ===
-        ui.strong("Test 1 - Musique Backglass (Front L/R)");
+        ui.strong(t!("audio_test_music"));
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             let music_label = if self.audio.music_looping { "[Stop]" } else { "[Play]" };
@@ -2250,12 +2536,12 @@ impl App {
                 }
             }
             if self.audio.music_looping {
-                ui.label("Balance :");
+                ui.label(t!("audio_pan"));
                 let pan_slider = egui::Slider::new(&mut self.audio.music_pan, -1.0..=1.0)
                     .custom_formatter(|v, _| {
-                        if v < -0.8 { "Gauche".to_string() }
-                        else if v <= 0.2 { "Centre".to_string() }
-                        else { "Droite".to_string() }
+                        if v < -0.8 { t!("audio_pan_left").to_string() }
+                        else if v <= 0.2 { t!("audio_pan_center").to_string() }
+                        else { t!("audio_pan_right").to_string() }
                     });
                 let response = ui.add_sized([ui.available_width(), 20.0], pan_slider);
                 if response.drag_stopped() || (response.changed() && !response.dragged()) {
@@ -2267,9 +2553,9 @@ impl App {
         });
 
         ui.add_space(12.0);
-        ui.strong("Test 2 - Enceintes Playfield (exciters SSF)");
+        ui.strong(t!("audio_test_speakers"));
         ui.add_space(4.0);
-        ui.label("Posez vos mains sur les coins de la caisse et testez chaque exciter :");
+        ui.label(t!("audio_speakers_hint"));
         ui.add_space(4.0);
 
         // 4 speaker buttons in a square layout + 2 ball tests in the middle
@@ -2280,7 +2566,7 @@ impl App {
         // Row 1: Top Left / Top Right
         ui.horizontal(|ui| {
             ui.add_space(gap);
-            if ui.add_sized([btn_w, btn_h], egui::Button::new("Haut Gauche (BL)")).clicked() {
+            if ui.add_sized([btn_w, btn_h], egui::Button::new(t!("audio_top_left").to_string())).clicked() {
                 if let Some(tx) = &self.audio_cmd_tx {
                     let _ = tx.send(AudioCommand::PlayOnSpeaker {
                         path: "ball_roll.ogg".to_string(), target: audio::SpeakerTarget::TopLeft,
@@ -2288,7 +2574,7 @@ impl App {
                 }
             }
             ui.add_space(gap * 2.0);
-            if ui.add_sized([btn_w, btn_h], egui::Button::new("Haut Droite (BR)")).clicked() {
+            if ui.add_sized([btn_w, btn_h], egui::Button::new(t!("audio_top_right").to_string())).clicked() {
                 if let Some(tx) = &self.audio_cmd_tx {
                     let _ = tx.send(AudioCommand::PlayOnSpeaker {
                         path: "ball_roll.ogg".to_string(), target: audio::SpeakerTarget::TopRight,
@@ -2301,7 +2587,7 @@ impl App {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.add_space(gap + btn_w / 2.0);
-            if ui.add_sized([btn_w + gap, btn_h], egui::Button::new("Bille Haut > Bas")).clicked() {
+            if ui.add_sized([btn_w + gap, btn_h], egui::Button::new(t!("audio_ball_top_bottom").to_string())).clicked() {
                 if let Some(tx) = &self.audio_cmd_tx {
                     let _ = tx.send(AudioCommand::PlayBallSequence {
                         path: "ball_roll.ogg".to_string(),
@@ -2316,7 +2602,7 @@ impl App {
         });
         ui.horizontal(|ui| {
             ui.add_space(gap + btn_w / 2.0);
-            if ui.add_sized([btn_w + gap, btn_h], egui::Button::new("Bille Gauche > Droite")).clicked() {
+            if ui.add_sized([btn_w + gap, btn_h], egui::Button::new(t!("audio_ball_left_right").to_string())).clicked() {
                 if let Some(tx) = &self.audio_cmd_tx {
                     let _ = tx.send(AudioCommand::PlayBallSequence {
                         path: "ball_roll.ogg".to_string(),
@@ -2334,7 +2620,7 @@ impl App {
         // Row 3: Bottom Left / Bottom Right
         ui.horizontal(|ui| {
             ui.add_space(gap);
-            if ui.add_sized([btn_w, btn_h], egui::Button::new("Bas Gauche (SL)")).clicked() {
+            if ui.add_sized([btn_w, btn_h], egui::Button::new(t!("audio_bottom_left").to_string())).clicked() {
                 if let Some(tx) = &self.audio_cmd_tx {
                     let _ = tx.send(AudioCommand::PlayOnSpeaker {
                         path: "ball_roll.ogg".to_string(), target: audio::SpeakerTarget::BottomLeft,
@@ -2342,7 +2628,7 @@ impl App {
                 }
             }
             ui.add_space(gap * 2.0);
-            if ui.add_sized([btn_w, btn_h], egui::Button::new("Bas Droite (SR)")).clicked() {
+            if ui.add_sized([btn_w, btn_h], egui::Button::new(t!("audio_bottom_right").to_string())).clicked() {
                 if let Some(tx) = &self.audio_cmd_tx {
                     let _ = tx.send(AudioCommand::PlayOnSpeaker {
                         path: "ball_roll.ogg".to_string(), target: audio::SpeakerTarget::BottomRight,
@@ -2353,36 +2639,36 @@ impl App {
     }
 
     fn render_tables_dir_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Repertoire des tables");
+        ui.heading(t!("tables_heading"));
         ui.add_space(4.0);
-        ui.label("Selectionnez le repertoire contenant vos tables VPX (un dossier par table).");
+        ui.label(t!("tables_desc"));
         ui.add_space(8.0);
 
-        ui.label("Arborescence attendue (folder-per-table VPinballX 10.8) :");
+        ui.label(t!("tables_structure"));
         ui.add_space(4.0);
         ui.code(
 "Tables/
-  Nom_De_La_Table/
-    Nom_De_La_Table.vpx          <- table (obligatoire)
-    Nom_De_La_Table.directb2s    <- backglass (meme nom que le .vpx)
-    Nom_De_La_Table.ini          <- config per-table (optionnel)
+  Table_Name/
+    Table_Name.vpx               <- table (required)
+    Table_Name.directb2s         <- backglass (same name as .vpx)
+    Table_Name.ini               <- per-table config (optional)
     pinmame/
-      roms/rom_name.zip          <- ROM PinMAME
-      nvram/rom_name.nv          <- sauvegarde
-    altcolor/rom_name/            <- colorisation Serum/VNI
-    medias/                       <- images/videos frontend"
+      roms/rom_name.zip          <- PinMAME ROM
+      nvram/rom_name.nv          <- save data
+    altcolor/rom_name/            <- Serum/VNI colorization
+    medias/                       <- frontend images/videos"
         );
 
         ui.add_space(8.0);
-        ui.label("Tous les parametres sont modifiables en jeu via F12.");
+        ui.label(t!("tables_modifiable"));
         ui.add_space(12.0);
 
         ui.horizontal(|ui| {
-            ui.label("Chemin :");
+            ui.label(t!("tables_path"));
             ui.text_edit_singleline(&mut self.tables_dir);
-            if ui.button("Parcourir...").clicked() {
+            if ui.button(t!("tables_browse")).clicked() {
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Selectionnez le repertoire des tables")
+                    .set_title(t!("tables_folder_picker"))
                     .pick_folder()
                 {
                     self.tables_dir = path.to_string_lossy().into_owned();
@@ -2402,10 +2688,10 @@ impl App {
                     })
                     .unwrap_or(0);
                 ui.add_space(8.0);
-                ui.label(format!("Repertoire valide — {count} dossiers trouves"));
+                ui.label(t!("tables_valid", count = count));
             } else {
                 ui.add_space(8.0);
-                ui.colored_label(egui::Color32::RED, "Ce repertoire n'existe pas");
+                ui.colored_label(egui::Color32::RED, t!("tables_invalid"));
             }
         }
     }
@@ -2515,21 +2801,21 @@ impl eframe::App for App {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 if self.page.index() > 0 {
-                    if ui.button("< Precedent").clicked() {
+                    if ui.button(t!("wizard_previous")).clicked() {
                         self.prev_page();
                     }
                 }
 
-                if ui.button("Reset").clicked() {
+                if ui.button(t!("wizard_reset")).clicked() {
                     self.reset_current_page();
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if self.page.index() < WizardPage::count() - 1 {
-                        if ui.button("Suivant >").clicked() {
+                        if ui.button(t!("wizard_next")).clicked() {
                             self.next_page();
                         }
-                    } else if ui.button("Terminer").clicked() {
+                    } else if ui.button(t!("wizard_finish")).clicked() {
                         self.finalize_wizard(ui.ctx());
                     }
                 });

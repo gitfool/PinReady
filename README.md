@@ -8,6 +8,7 @@ PinReady replaces the non-existent native configuration tools for VPX standalone
 
 ### Configuration wizard
 
+- **VPinballX auto-install** -- Automatically download and install the correct VPinballX build for your platform (Linux/macOS/Windows, x64/arm64/SBC)
 - **Screen assignment** -- Detect displays via SDL3, auto-assign roles (Playfield, Backglass, DMD, Topper) by size, configure multi-screen positioning
 - **Input mapping** -- Capture keyboard and joystick bindings for all VPX actions, auto-detect Pinscape/KL25Z controllers
 - **Tilt & nudge** -- Configure accelerometer sensitivity with simplified or advanced controls
@@ -18,6 +19,7 @@ PinReady replaces the non-existent native configuration tools for VPX standalone
 - **Table browser** -- Scan folder-per-table directories, display backglass thumbnails extracted from `.directb2s` files
 - **Multi-screen layout** -- Table selector on DMD, backglass preview on BG display, cover screens on unused displays
 - **VPX integration** -- Launch tables with loading progress overlay, parse VPX stdout for real-time status
+- **Auto-update** -- Checks for new VPinballX releases on startup, one-click update from the launcher
 - **Input navigation** -- Browse and launch tables with joystick (flippers, start) or keyboard
 
 ## Target
@@ -36,6 +38,8 @@ PinReady replaces the non-existent native configuration tools for VPX standalone
 | Database | `rusqlite` (bundled) | Local table catalog |
 | Images | `image` + `directb2s` | Backglass thumbnail extraction |
 | Audio | `symphonia` | OGG/Vorbis decode for SDL3 playback |
+| HTTP | `ureq` | GitHub API + release download |
+| Archive | `zip` | Release extraction |
 
 ## Build
 
@@ -72,8 +76,9 @@ RUST_LOG=info cargo run
 
 ### Requirements
 
-- **VPinballX** executable (10.8.1+) -- path configured in the wizard
+- **VPinballX** executable (10.8.1+) -- auto-installed or path configured in the wizard
 - **Tables directory** -- folder-per-table layout as described in VPX docs
+- **Internet connection** -- required for auto-install and update checks (optional for manual install)
 
 ### Launcher controls
 
@@ -97,7 +102,55 @@ src/
   assets.rs     Backglass extraction from directb2s files
   config.rs     VPinballX.ini read/write (format-preserving)
   db.rs         SQLite catalog
+  updater.rs    VPinballX release check, download, install
 ```
+
+## VPinballX fork management
+
+The `vpinball-fork.sh` script manages a personal fork of [vpinball/vpinball](https://github.com/vpinball/vpinball) for building VPinballX. It keeps CI workflows set to manual dispatch so builds only run when you decide.
+
+Releases created by this script are automatically detected by PinReady clients, which can download and install the correct build for their platform.
+
+### Prerequisites
+
+- [gh CLI](https://cli.github.com) installed and authenticated (`gh auth login`)
+- `jq` installed (`sudo apt install jq`)
+- A fork of `vpinball/vpinball` on your GitHub account
+
+### Workflow
+
+```bash
+# 1. Sync fork with upstream + patch CI + trigger builds
+./vpinball-fork.sh sync
+
+# 2. Monitor build progress
+./vpinball-fork.sh status
+
+# 3. Test the build manually on your pincab
+
+# 4. When validated, create a GitHub Release (clients will auto-detect it)
+./vpinball-fork.sh release
+```
+
+### Commands
+
+| Command | Action |
+|---|---|
+| `sync` | Force-reset fork to upstream HEAD, patch workflows to `workflow_dispatch`, trigger `vpinball` + `vpinball-sbc` builds |
+| `release` | Wait for both builds to succeed, run `prerelease` workflow to create a GitHub Release, upload SBC artifacts |
+| `status` | Show recent workflow runs and latest release info |
+
+### How it works
+
+1. **sync** resets the fork's master branch to match upstream exactly, then commits two patches that change the CI trigger from `push` to `workflow_dispatch`. This prevents builds from running on every upstream sync. Finally, it dispatches both build workflows.
+
+2. **release** waits for the `vpinball` and `vpinball-sbc` workflows to complete successfully, then triggers the `prerelease` workflow which creates a GitHub Release with all PC artifacts (Windows, macOS, Linux). SBC artifacts (RPi, RK3588) are then uploaded to the same release.
+
+3. PinReady clients check this release on startup and offer one-click updates.
+
+### Validated configuration
+
+Builds are tested on: **Ubuntu 24.04 LTS, X11, 3-screen PinCab**. Other platforms are built but not validated.
 
 ## License
 

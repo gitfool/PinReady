@@ -3,14 +3,18 @@
 // See https://www.gnu.org/licenses/gpl-3.0.html
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+rust_i18n::i18n!("locales");
+
 mod app;
 mod assets;
 mod audio;
 mod config;
 mod db;
+mod i18n;
 mod inputs;
 mod screens;
 mod tilt;
+mod updater;
 
 use anyhow::Result;
 
