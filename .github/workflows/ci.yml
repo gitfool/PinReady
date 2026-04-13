@@ -95,6 +95,16 @@ jobs:
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
           echo "CFLAGS=-mmacosx-version-min=11.0" >> $GITHUB_ENV
           echo "CXXFLAGS=-mmacosx-version-min=11.0" >> $GITHUB_ENV
+          # SDL3 Objective-C files use @available() which emits calls to
+          # ___isPlatformVersionAtLeast from libclang_rt. Find and link it.
+          CLANG_RT_DIR=$(clang --print-search-dirs | grep libraries | sed 's/libraries: =//;s/:.*//')
+          CLANG_RT_LIB=$(find "$CLANG_RT_DIR" -name 'libclang_rt.osx.a' 2>/dev/null | head -1)
+          if [ -n "$CLANG_RT_LIB" ]; then
+            echo "RUSTFLAGS=-C link-arg=$CLANG_RT_LIB" >> $GITHUB_ENV
+            echo "Found clang_rt: $CLANG_RT_LIB"
+          else
+            echo "Warning: libclang_rt.osx.a not found"
+          fi
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} ${{ runner.os == 'Windows' && '--features win-icon' || '' }}
