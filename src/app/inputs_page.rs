@@ -123,7 +123,7 @@ impl App {
                     continue;
                 }
 
-                ui.label(action.label);
+                ui.label(t!(action.label));
 
                 // Current binding display
                 let is_capturing = self.capture_state == CaptureState::Capturing(idx);

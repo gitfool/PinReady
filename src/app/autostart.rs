@@ -62,7 +62,7 @@ pub(super) fn set_autostart(enabled: bool) -> anyhow::Result<()> {
             "[Desktop Entry]\n\
              Type=Application\n\
              Name=PinReady\n\
-             Comment=VPinballX configurator and launcher\n\
+             Comment=Visual Pinball configurator and launcher\n\
              Exec={exe_str}\n\
              Terminal=false\n\
              X-GNOME-Autostart-enabled=true\n"

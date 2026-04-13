@@ -1,4 +1,4 @@
-// VPinballX release checker, downloader, and installer.
+// Visual Pinball release checker, downloader, and installer.
 // Queries a GitHub fork for releases and downloads the correct artifact
 // for the current platform.
 
@@ -7,7 +7,7 @@ use crossbeam_channel::Sender;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-/// Default GitHub repository for VPinballX releases.
+/// Default GitHub repository for Visual Pinball releases.
 pub const DEFAULT_FORK_REPO: &str = "Le-Syl21/vpinball";
 
 /// Information about a GitHub release.
@@ -183,12 +183,12 @@ pub fn check_latest_release(repo: &str) -> Result<ReleaseInfo> {
 // Download & install
 // ---------------------------------------------------------------------------
 
-/// Default installation directory for VPinballX.
+/// Default installation directory for Visual Pinball.
 pub fn default_install_dir() -> PathBuf {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join("VPinballX")
+    PathBuf::from(home).join("Visual_Pinball")
 }
 
 /// Resolve the real executable path from a user-provided path.
@@ -215,7 +215,7 @@ pub fn resolve_vpx_exe(path: &Path) -> PathBuf {
     p
 }
 
-/// Name of the main VPinballX executable for the current platform.
+/// Name of the main Visual Pinball executable for the current platform.
 pub fn vpx_executable_name() -> &'static str {
     if cfg!(target_os = "windows") {
         if cfg!(target_arch = "x86_64") {

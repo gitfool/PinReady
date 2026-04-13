@@ -378,7 +378,7 @@ impl App {
                             painter.text(
                                 img_area.center(),
                                 egui::Align2::CENTER_CENTER,
-                                "Pas de backglass",
+                                &t!("launcher_no_backglass"),
                                 egui::FontId::proportional(18.0),
                                 egui::Color32::GRAY,
                             );

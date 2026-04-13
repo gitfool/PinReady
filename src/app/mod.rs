@@ -104,7 +104,7 @@ impl WizardPage {
     }
 }
 
-/// How the VPinballX executable is provided
+/// How the Visual Pinball executable is provided
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum VpxInstallMode {
     /// Download from GitHub fork release
@@ -127,7 +127,7 @@ pub struct App {
     config: VpxConfig,
     db: Database,
 
-    // VPinballX executable path
+    // Visual Pinball executable path
     vpx_exe_path: String,
 
     // Page 1 — Screens
@@ -306,7 +306,7 @@ impl App {
         audio.load_from_config(&config);
         audio.available_devices = AudioConfig::enumerate_devices();
 
-        // Load VPinballX executable path and updater config
+        // Load Visual Pinball executable path and updater config
         let vpx_exe_path = db.get_config("vpx_exe_path").unwrap_or_default();
         let vpx_fork_repo = db
             .get_config("vpx_fork_repo")
@@ -355,7 +355,7 @@ impl App {
             });
             if should_check && !vpx_fork_repo.is_empty() {
                 let repo = vpx_fork_repo.clone();
-                log::info!("Checking for VPinballX updates from {repo}...");
+                log::info!("Checking for Visual Pinball updates from {repo}...");
                 let (tx, rx) = crossbeam_channel::bounded(1);
                 std::thread::spawn(move || {
                     let result = updater::check_latest_release(&repo);
@@ -643,8 +643,7 @@ impl eframe::App for App {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Block navigation while VPX is downloading on the Screens page
-                    let downloading = self.update_downloading
-                        && self.page == WizardPage::Screens;
+                    let downloading = self.update_downloading && self.page == WizardPage::Screens;
                     if self.page.index() < WizardPage::count() - 1 {
                         let btn = egui::Button::new(t!("wizard_next"));
                         if ui.add_enabled(!downloading, btn).clicked() {
@@ -693,9 +692,9 @@ impl eframe::App for App {
                     .show(ui, |ui| {
                         ui.add_space(0.0); // ensure full width
                         let _ = ui.available_width(); // force layout to use full width
-                        // Process VPX download progress on every page so the
-                        // download completes even when the user navigates away
-                        // from the Screens page.
+                                                      // Process VPX download progress on every page so the
+                                                      // download completes even when the user navigates away
+                                                      // from the Screens page.
                         self.process_update_check();
 
                         match self.page {

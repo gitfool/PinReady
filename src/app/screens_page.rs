@@ -31,7 +31,7 @@ impl App {
         ui.separator();
         ui.add_space(8.0);
 
-        // VPinballX installation
+        // Visual Pinball installation
         ui.label(egui::RichText::new(t!("vpx_install_title")).strong());
         ui.add_space(4.0);
 
@@ -187,9 +187,9 @@ impl App {
         // View mode
         ui.label(t!("screens_display_mode"));
         ui.horizontal(|ui| {
-            ui.radio_value(&mut self.view_mode, 0, "Desktop");
-            ui.radio_value(&mut self.view_mode, 1, "Cabinet");
-            ui.radio_value(&mut self.view_mode, 2, "Full Single Screen");
+            ui.radio_value(&mut self.view_mode, 0, t!("screens_mode_desktop"));
+            ui.radio_value(&mut self.view_mode, 1, t!("screens_mode_cabinet"));
+            ui.radio_value(&mut self.view_mode, 2, t!("screens_mode_fss"));
         });
 
         ui.add_space(8.0);
@@ -308,7 +308,7 @@ impl App {
                 painter.text(
                     egui::pos2(rect.right() - 30.0, ground_y + 8.0),
                     egui::Align2::CENTER_CENTER,
-                    "Sol",
+                    &t!("cabinet_ground"),
                     egui::FontId::proportional(10.0),
                     col_ground,
                 );

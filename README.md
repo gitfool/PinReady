@@ -1,45 +1,53 @@
-# PinReady
+# 🎯 PinReady
 
-[English](#english) | [Français](#français)
+🇬🇧 [English](#-english) | 🇫🇷 [Français](#-français)
 
 ---
 
-## English
+## 🇬🇧 English
 
-Cross-platform configurator and launcher for [VPinballX](https://github.com/vpinball/vpinball) standalone (10.8.1).
+Cross-platform configurator and launcher for [Visual Pinball](https://github.com/vpinball/vpinball) standalone (10.8.1).
 
-PinReady replaces the non-existent native configuration tools for VPX standalone builds (SDL3/bgfx). It guides you through setting up a virtual pinball cabinet from scratch: screens, inputs, tilt, audio, then lets you browse and launch tables from a single interface.
+PinReady replaces the non-existent native configuration tools for VPX standalone builds (SDL3/bgfx). It guides you through setting up a virtual pinball cabinet from scratch: screens, inputs, tilt, audio, then lets you browse and launch tables from a single interface. 🕹️
 
-### Features
+### ✨ Features
 
-**Configuration wizard (first run)**
+**🧙 Configuration wizard (first run)**
 
-- **VPinballX auto-install** -- Automatically download and install the correct VPinballX build for your platform (Linux/macOS/Windows, x64/arm64/SBC)
-- **Screen assignment** -- Detect displays via SDL3, auto-assign roles (Playfield, Backglass, DMD, Topper) by size, configure multi-screen positioning and cabinet physical dimensions
-- **Rendering** -- Anti-aliasing, FXAA, sharpening, reflections, texture limits, sync mode, max framerate
-- **Input mapping** -- Capture keyboard and joystick bindings for all VPX actions, auto-detect Pinscape/KL25Z controllers, conflict warnings
-- **Tilt & nudge** -- Configure accelerometer sensitivity with simplified or advanced controls
-- **Audio routing** -- Assign playfield and backglass audio devices, configure SSF surround modes (6 modes), test speaker wiring with built-in audio sequences (music, ball sounds, knocker)
-- **Tables directory** -- Select the root folder containing your tables (folder-per-table layout)
-- **Internationalization** -- 20+ languages, including CJK, Arabic, Thai, Hindi
+- 📥 **Visual Pinball auto-install** -- Automatically download and install the correct Visual Pinball build for your platform (Linux/macOS/Windows, x64/arm64/SBC)
+- 🖥️ **Screen assignment** -- Detect displays via SDL3, auto-assign roles (Playfield, Backglass, DMD, Topper) by size, configure multi-screen positioning and cabinet physical dimensions
+- 🎨 **Rendering** -- Anti-aliasing, FXAA, sharpening, reflections, texture limits, sync mode, max framerate
+- 🎮 **Input mapping** -- Capture keyboard and joystick bindings for all VPX actions, auto-detect Pinscape/KL25Z controllers, conflict warnings
+- 📐 **Tilt & nudge** -- Configure accelerometer sensitivity with simplified or advanced controls
+- 🔊 **Audio routing** -- Assign playfield and backglass audio devices, configure SSF surround modes (6 modes), test speaker wiring with built-in audio sequences (music, ball sounds, knocker)
+- 📁 **Tables directory** -- Select the root folder containing your tables (folder-per-table layout)
+- 🌍 **Internationalization** -- 20+ languages: 🇬🇧 🇫🇷 🇩🇪 🇪🇸 🇮🇹 🇵🇹 🇳🇱 🇸🇪 🇫🇮 🇵🇱 🇨🇿 🇸🇰 🇷🇺 🇹🇷 🇸🇦 🇮🇳 🇧🇩 🇹🇭 🇻🇳 🇮🇩 🇰🇪 🇨🇳 🇹🇼 🇯🇵 🇰🇷
 
-**Table launcher (subsequent runs)**
+**🚀 Table launcher (subsequent runs)**
 
-- **Table browser** -- Scan folder-per-table directories, display backglass thumbnails extracted from `.directb2s` files
-- **Multi-screen layout** -- Table selector on DMD, backglass preview on BG display
-- **VPX integration** -- Launch tables with loading progress overlay, parse VPX stdout for real-time status
-- **Auto-update** -- Checks for new VPinballX releases on startup, one-click update from the launcher
-- **Input navigation** -- Browse and launch tables with joystick (flippers, start) or keyboard
+- 🗂️ **Table browser** -- Scan folder-per-table directories, display backglass thumbnails extracted from `.directb2s` files
+- 📺 **Multi-screen layout** -- Table selector on DMD, backglass preview on BG display
+- ⚡ **VPX integration** -- Launch tables with loading progress overlay, parse VPX stdout for real-time status
+- 🔄 **Auto-update** -- Checks for new Visual Pinball releases on startup, one-click update from the launcher
+- 🕹️ **Input navigation** -- Browse and launch tables with joystick (flippers, start) or keyboard
 
-### Target
+### 🎯 Target
 
-- **VPinballX 10.8.1** -- Uses the folder-per-table layout
-- **Cross-platform** -- Linux, macOS, Windows. SDL3 only, no platform-specific APIs
-- **No system dependencies** -- SDL3 and SQLite are statically linked
+- 🎰 **Visual Pinball 10.8.1** -- Uses the folder-per-table layout
+- 💻 **Cross-platform** -- Linux, macOS, Windows. SDL3 only, no platform-specific APIs
+- 📦 **No system dependencies** -- SDL3 and SQLite are statically linked
 
-### Build
+### 📥 Download
 
-**Linux:**
+Grab the latest release for your platform -- no install needed, just download and run:
+
+👉 **[Download PinReady](https://github.com/Le-Syl21/PinReady/releases/latest)** (Linux, macOS, Windows)
+
+### 🔨 Build from source
+
+If you prefer to compile it yourself:
+
+**🐧 Linux:**
 
 ```bash
 sudo apt install build-essential cmake pkg-config \
@@ -49,15 +57,15 @@ sudo apt install build-essential cmake pkg-config \
 cargo build --release
 ```
 
-**macOS / Windows:**
+**🍎 macOS / 🪟 Windows:**
 
 ```bash
 cargo build --release
 ```
 
-SDL3 and SQLite compile from source automatically -- no manual installation needed.
+SDL3 and SQLite compile from source automatically -- no manual installation needed. ✅
 
-### Usage
+### 🚀 Usage
 
 **First run** (no existing database) launches the configuration wizard.
 **Subsequent runs** go directly to the table launcher. The wizard can be re-launched at any time.
@@ -70,15 +78,15 @@ RUST_LOG=info cargo run
 ./target/release/pinready
 ```
 
-**Requirements:**
+**📋 Requirements:**
 
-- **VPinballX** executable (10.8.1+) -- auto-installed or path configured in the wizard
-- **Tables directory** -- folder-per-table layout as described in VPX docs
-- **Internet connection** -- required for auto-install and update checks (optional for manual install)
+- 🎰 **Visual Pinball** executable (10.8.1+) -- auto-installed or path configured in the wizard
+- 📁 **Tables directory** -- folder-per-table layout as described in VPX docs
+- 🌐 **Internet connection** -- required for auto-install and update checks (optional for manual install)
 
-**Launcher controls:**
+**🎮 Launcher controls:**
 
-| Action | Keyboard | Joystick |
+| Action | ⌨️ Keyboard | 🕹️ Joystick |
 |---|---|---|
 | Navigate tables | Arrow keys | Left/Right flipper (prev/next), Staged flippers (row up/down) |
 | Launch table | Enter | Start button |
@@ -87,42 +95,50 @@ RUST_LOG=info cargo run
 
 ---
 
-## Français
+## 🇫🇷 Français
 
-Configurateur et lanceur multiplateforme pour [VPinballX](https://github.com/vpinball/vpinball) standalone (10.8.1).
+Configurateur et lanceur multiplateforme pour [Visual Pinball](https://github.com/vpinball/vpinball) standalone (10.8.1).
 
-PinReady remplace les outils de configuration natifs inexistants pour les builds VPX standalone (SDL3/bgfx). Il vous guide dans la mise en place d'un flipper virtuel depuis zero : ecrans, controles, tilt, audio, puis permet de parcourir et lancer vos tables depuis une interface unique.
+PinReady remplace les outils de configuration natifs inexistants pour les builds VPX standalone (SDL3/bgfx). Il vous guide dans la mise en place d'un flipper virtuel depuis zéro : écrans, contrôles, tilt, audio, puis permet de parcourir et lancer vos tables depuis une interface unique. 🕹️
 
-### Fonctionnalites
+### ✨ Fonctionnalités
 
-**Assistant de configuration (premier lancement)**
+**🧙 Assistant de configuration (premier lancement)**
 
-- **Installation automatique de VPinballX** -- Telecharge et installe automatiquement le bon build VPinballX pour votre plateforme (Linux/macOS/Windows, x64/arm64/SBC)
-- **Affectation des ecrans** -- Detection des ecrans via SDL3, affectation automatique des roles (Playfield, Backglass, DMD, Topper) par taille, configuration du positionnement multi-ecran et des dimensions physiques du cabinet
-- **Rendu** -- Anti-aliasing, FXAA, nettete, reflets, limites de texture, mode sync, framerate max
-- **Mapping des controles** -- Capture des touches clavier et boutons joystick pour toutes les actions VPX, detection automatique des controleurs Pinscape/KL25Z, avertissements de conflits
-- **Tilt & nudge** -- Configuration de la sensibilite de l'accelerometre en mode simplifie ou avance
-- **Routage audio** -- Affectation des peripheriques audio playfield et backglass, configuration des modes surround SSF (6 modes), test du cablage des enceintes avec sequences audio integrees (musique, bruits de bille, knocker)
-- **Repertoire des tables** -- Selection du dossier racine contenant vos tables (format dossier-par-table)
-- **Internationalisation** -- 20+ langues, dont CJK, arabe, thai, hindi
+- 📥 **Installation automatique de Visual Pinball** -- Télécharge et installe automatiquement le bon build Visual Pinball pour votre plateforme (Linux/macOS/Windows, x64/arm64/SBC)
+- 🖥️ **Affectation des écrans** -- Détection des écrans via SDL3, affectation automatique des rôles (Playfield, Backglass, DMD, Topper) par taille, configuration du positionnement multi-écran et des dimensions physiques du cabinet
+- 🎨 **Rendu** -- Anti-aliasing, FXAA, netteté, reflets, limites de texture, mode sync, framerate max
+- 🎮 **Mapping des contrôles** -- Capture des touches clavier et boutons joystick pour toutes les actions VPX, détection automatique des contrôleurs Pinscape/KL25Z, avertissements de conflits
+- 📐 **Tilt & nudge** -- Configuration de la sensibilité de l'accéléromètre en mode simplifié ou avancé
+- 🔊 **Routage audio** -- Affectation des périphériques audio playfield et backglass, configuration des modes surround SSF (6 modes), test du câblage des enceintes avec séquences audio intégrées (musique, bruits de bille, knocker)
+- 📁 **Répertoire des tables** -- Sélection du dossier racine contenant vos tables (format dossier-par-table)
+- 🌍 **Internationalisation** -- 20+ langues : 🇬🇧 🇫🇷 🇩🇪 🇪🇸 🇮🇹 🇵🇹 🇳🇱 🇸🇪 🇫🇮 🇵🇱 🇨🇿 🇸🇰 🇷🇺 🇹🇷 🇸🇦 🇮🇳 🇧🇩 🇹🇭 🇻🇳 🇮🇩 🇰🇪 🇨🇳 🇹🇼 🇯🇵 🇰🇷
 
-**Lanceur de tables (lancements suivants)**
+**🚀 Lanceur de tables (lancements suivants)**
 
-- **Navigateur de tables** -- Scan des repertoires dossier-par-table, affichage des miniatures backglass extraites des fichiers `.directb2s`
-- **Affichage multi-ecran** -- Selecteur de table sur le DMD, apercu du backglass sur l'ecran BG
-- **Integration VPX** -- Lancement des tables avec overlay de progression, lecture du stdout VPX pour le statut en temps reel
-- **Mise a jour automatique** -- Verifie les nouvelles releases VPinballX au demarrage, mise a jour en un clic depuis le lanceur
-- **Navigation aux controles** -- Parcourir et lancer les tables au joystick (flippers, start) ou au clavier
+- 🗂️ **Navigateur de tables** -- Scan des répertoires dossier-par-table, affichage des miniatures backglass extraites des fichiers `.directb2s`
+- 📺 **Affichage multi-écran** -- Sélecteur de table sur le DMD, aperçu du backglass sur l'écran BG
+- ⚡ **Intégration VPX** -- Lancement des tables avec overlay de progression, lecture du stdout VPX pour le statut en temps réel
+- 🔄 **Mise à jour automatique** -- Vérifie les nouvelles releases Visual Pinball au démarrage, mise à jour en un clic depuis le lanceur
+- 🕹️ **Navigation aux contrôles** -- Parcourir et lancer les tables au joystick (flippers, start) ou au clavier
 
-### Cible
+### 🎯 Cible
 
-- **VPinballX 10.8.1** -- Utilise le format dossier-par-table
-- **Multiplateforme** -- Linux, macOS, Windows. SDL3 uniquement, aucune API specifique a une plateforme
-- **Aucune dependance systeme** -- SDL3 et SQLite sont lies statiquement
+- 🎰 **Visual Pinball 10.8.1** -- Utilise le format dossier-par-table
+- 💻 **Multiplateforme** -- Linux, macOS, Windows. SDL3 uniquement, aucune API spécifique à une plateforme
+- 📦 **Aucune dépendance système** -- SDL3 et SQLite sont liés statiquement
 
-### Compilation
+### 📥 Téléchargement
 
-**Linux :**
+Téléchargez la dernière version pour votre plateforme -- pas d'installation, il suffit de lancer :
+
+👉 **[Télécharger PinReady](https://github.com/Le-Syl21/PinReady/releases/latest)** (Linux, macOS, Windows)
+
+### 🔨 Compilation depuis les sources
+
+Si vous préférez compiler vous-même :
+
+**🐧 Linux :**
 
 ```bash
 sudo apt install build-essential cmake pkg-config \
@@ -132,18 +148,18 @@ sudo apt install build-essential cmake pkg-config \
 cargo build --release
 ```
 
-**macOS / Windows :**
+**🍎 macOS / 🪟 Windows :**
 
 ```bash
 cargo build --release
 ```
 
-SDL3 et SQLite se compilent depuis les sources automatiquement -- aucune installation manuelle necessaire.
+SDL3 et SQLite se compilent depuis les sources automatiquement -- aucune installation manuelle nécessaire. ✅
 
-### Utilisation
+### 🚀 Utilisation
 
-**Premier lancement** (pas de base de donnees existante) : lance l'assistant de configuration.
-**Lancements suivants** : acces direct au lanceur de tables. L'assistant peut etre relance a tout moment.
+**Premier lancement** (pas de base de données existante) : lance l'assistant de configuration.
+**Lancements suivants** : accès direct au lanceur de tables. L'assistant peut être relancé à tout moment.
 
 ```bash
 # Lancer avec les logs de debug
@@ -153,24 +169,24 @@ RUST_LOG=info cargo run
 ./target/release/pinready
 ```
 
-**Prerequis :**
+**📋 Prérequis :**
 
-- **VPinballX** executable (10.8.1+) -- installe automatiquement ou chemin configure dans l'assistant
-- **Repertoire de tables** -- format dossier-par-table tel que decrit dans la doc VPX
-- **Connexion internet** -- necessaire pour l'installation automatique et la verification des mises a jour (optionnel pour l'installation manuelle)
+- 🎰 **Visual Pinball** exécutable (10.8.1+) -- installé automatiquement ou chemin configuré dans l'assistant
+- 📁 **Répertoire de tables** -- format dossier-par-table tel que décrit dans la doc VPX
+- 🌐 **Connexion internet** -- nécessaire pour l'installation automatique et la vérification des mises à jour (optionnel pour l'installation manuelle)
 
-**Controles du lanceur :**
+**🎮 Contrôles du lanceur :**
 
-| Action | Clavier | Joystick |
+| Action | ⌨️ Clavier | 🕹️ Joystick |
 |---|---|---|
-| Naviguer les tables | Fleches | Flippers gauche/droit (precedent/suivant), Staged flippers (ligne haut/bas) |
-| Lancer une table | Entree | Bouton Start |
+| Naviguer les tables | Flèches | Flippers gauche/droit (précédent/suivant), Staged flippers (ligne haut/bas) |
+| Lancer une table | Entrée | Bouton Start |
 | Ouvrir la config | -- | Bouton Launch Ball |
-| Quitter le lanceur | Echap | Bouton ExitGame |
+| Quitter le lanceur | Échap | Bouton ExitGame |
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 src/
@@ -183,28 +199,28 @@ src/
   assets.rs     Backglass extraction from directb2s files
   config.rs     VPinballX.ini read/write (format-preserving)
   db.rs         SQLite catalog
-  updater.rs    VPinballX release check, download, install
+  updater.rs    Visual Pinball release check, download, install
 ```
 
-## Stack
+## 🧰 Stack
 
 | Layer | Crate | Role |
 |---|---|---|
-| UI | `eframe` + `egui` | Immediate mode GUI |
-| Display/Input | `sdl3-sys` (build-from-source-static) | Screen enumeration, input capture |
-| Config | `ini-preserve` | Read/write VPinballX.ini |
-| Database | `rusqlite` (bundled) | Local table catalog |
-| Images | `image` + `directb2s` | Backglass thumbnail extraction |
-| Audio | `symphonia` | OGG/Vorbis decode for SDL3 playback |
-| HTTP | `ureq` | GitHub API + release download |
-| Archive | `zip` + `flate2` + `tar` | Release extraction |
-| i18n | `rust-i18n` + `noto-fonts-dl` | 20+ languages with font support |
+| 🖼️ UI | `eframe` + `egui` | Immediate mode GUI |
+| 🖥️ Display/Input | `sdl3-sys` (build-from-source-static) | Screen enumeration, input capture |
+| ⚙️ Config | `ini-preserve` | Read/write VPinballX.ini |
+| 🗄️ Database | `rusqlite` (bundled) | Local table catalog |
+| 🖼️ Images | `image` + `directb2s` | Backglass thumbnail extraction |
+| 🔊 Audio | `symphonia` | OGG/Vorbis decode for SDL3 playback |
+| 🌐 HTTP | `ureq` | GitHub API + release download |
+| 📦 Archive | `zip` + `flate2` + `tar` | Release extraction |
+| 🌍 i18n | `rust-i18n` + `noto-fonts-dl` | 20+ languages with font support |
 
-## VPinballX fork management
+## 🔧 Visual Pinball fork management
 
-The `vpinball-fork.sh` script manages a personal fork of [vpinball/vpinball](https://github.com/vpinball/vpinball) for building VPinballX. It keeps CI workflows set to manual dispatch so builds only run when you decide.
+The `vpinball-fork.sh` script manages a personal fork of [vpinball/vpinball](https://github.com/vpinball/vpinball) for building Visual Pinball. It keeps CI workflows set to manual dispatch so builds only run when you decide.
 
-Releases created by this script are automatically detected by PinReady clients, which can download and install the correct build for their platform.
+Releases created by this script are automatically detected by PinReady clients, which can download and install the correct build for their platform. 🎉
 
 ### Prerequisites
 
@@ -235,6 +251,6 @@ Releases created by this script are automatically detected by PinReady clients, 
 | `release` | Wait for both builds to succeed, run `prerelease` workflow to create a GitHub Release, upload SBC artifacts |
 | `status` | Show recent workflow runs and latest release info |
 
-## License
+## 📄 License
 
 GPL-3.0-or-later

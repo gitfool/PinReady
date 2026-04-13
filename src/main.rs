@@ -1,4 +1,4 @@
-// PinReady — VPinballX configuration wizard & table launcher
+// PinReady — Visual Pinball configuration wizard & table launcher
 // Copyright (C) 2026 — Licensed under GPLv3+
 // See https://www.gnu.org/licenses/gpl-3.0.html
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     }
     let force_config = args.iter().any(|a| a == "--config" || a == "-c");
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        println!("PinReady v{VERSION} — VPinballX configurator & launcher");
+        println!("PinReady v{VERSION} — Visual Pinball configurator & launcher");
         println!();
         println!("Usage: pinready [OPTIONS]");
         println!();

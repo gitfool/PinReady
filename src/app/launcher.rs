@@ -131,7 +131,7 @@ impl App {
         }
         let resolved = updater::resolve_vpx_exe(std::path::Path::new(&self.vpx_exe_path));
         if self.vpx_exe_path.is_empty() || !resolved.is_file() {
-            log::error!("VPinballX executable not found: {}", self.vpx_exe_path);
+            log::error!("Visual Pinball executable not found: {}", self.vpx_exe_path);
             return;
         }
         log::info!(
@@ -143,7 +143,7 @@ impl App {
         let path = table_path.to_path_buf();
         let running = self.vpx_running.clone();
         running.store(true, Ordering::Relaxed);
-        self.vpx_loading_msg = "Lancement de VPinballX...".to_string();
+        self.vpx_loading_msg = t!("launcher_loading").to_string();
         self.vpx_error_log = None;
 
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -158,7 +158,7 @@ impl App {
                 .spawn();
             match child {
                 Ok(mut child) => {
-                    log::info!("VPinballX launched, reading stdout...");
+                    log::info!("Visual Pinball launched, reading stdout...");
                     let stdout = child.stdout.take();
                     let mut log_lines: Vec<String> = Vec::new();
                     let mut startup_done = false;
@@ -199,7 +199,7 @@ impl App {
 
                     match child.wait() {
                         Ok(status) => {
-                            log::info!("VPinballX exited with status: {status}");
+                            log::info!("Visual Pinball exited with status: {status}");
                             if status.success() || startup_done {
                                 let _ = tx.send(VpxStatus::ExitOk);
                             } else {
@@ -209,13 +209,13 @@ impl App {
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to wait for VPinballX: {e}");
+                            log::error!("Failed to wait for Visual Pinball: {e}");
                             let _ = tx.send(VpxStatus::ExitError(format!("Process error: {e}")));
                         }
                     }
                 }
                 Err(e) => {
-                    log::error!("Failed to launch VPinballX: {e}");
+                    log::error!("Failed to launch Visual Pinball: {e}");
                     let _ = tx.send(VpxStatus::LaunchError(format!("{e}")));
                 }
             }
@@ -248,13 +248,12 @@ impl App {
         self.images_preloaded = true;
         let mut count = 0;
         for (idx, table) in self.tables.iter().enumerate() {
-            if table.bg_bytes.is_some() {
-                // Already injected via scan_tables bg_bytes
-                continue;
-            }
-            if let Some(ref path) = table.bg_path {
+            let uri = format!("bytes://bg/{idx}");
+            if let Some(ref arc) = table.bg_bytes {
+                ctx.include_bytes(uri, arc.clone());
+                count += 1;
+            } else if let Some(ref path) = table.bg_path {
                 if let Ok(bytes) = std::fs::read(path) {
-                    let uri = format!("bytes://bg/{idx}");
                     ctx.include_bytes(uri, bytes);
                     count += 1;
                 }
@@ -432,14 +431,14 @@ impl App {
                         self.vpx_latest_release = None;
                         self.update_progress_rx = None;
                         self.update_error = None;
-                        log::info!("VPinballX installed to: {}", path_str);
+                        log::info!("Visual Pinball installed to: {}", path_str);
                         return;
                     }
                     UpdateProgress::Error(msg) => {
                         self.update_downloading = false;
                         self.update_error = Some(msg.clone());
                         self.update_progress_rx = None;
-                        log::error!("VPinballX update failed: {}", msg);
+                        log::error!("Visual Pinball update failed: {}", msg);
                         return;
                     }
                 }

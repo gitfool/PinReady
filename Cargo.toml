@@ -1,8 +1,8 @@
 [package]
 name = "pinready"
-version = "0.2.5"
+version = "0.3.0"
 edition = "2021"
-description = "Cross-platform configurator and launcher for VPinballX standalone"
+description = "Cross-platform configurator and launcher for Visual Pinball standalone"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/Le-Syl21/PinReady"
 homepage = "https://github.com/Le-Syl21/PinReady"
