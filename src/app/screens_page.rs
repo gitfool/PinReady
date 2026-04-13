@@ -32,7 +32,6 @@ impl App {
         ui.add_space(8.0);
 
         // VPinballX installation
-        self.process_update_check();
         ui.label(egui::RichText::new(t!("vpx_install_title")).strong());
         ui.add_space(4.0);
 

@@ -642,12 +642,35 @@ impl eframe::App for App {
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Block navigation while VPX is downloading on the Screens page
+                    let downloading = self.update_downloading
+                        && self.page == WizardPage::Screens;
                     if self.page.index() < WizardPage::count() - 1 {
-                        if ui.button(t!("wizard_next")).clicked() {
+                        let btn = egui::Button::new(t!("wizard_next"));
+                        if ui.add_enabled(!downloading, btn).clicked() {
                             self.next_page();
                         }
-                    } else if ui.button(t!("wizard_finish")).clicked() {
-                        self.finalize_wizard(ui.ctx());
+                    } else {
+                        let btn = egui::Button::new(t!("wizard_finish"));
+                        if ui.add_enabled(!downloading, btn).clicked() {
+                            self.finalize_wizard(ui.ctx());
+                        }
+                    }
+                    if downloading {
+                        let (current, total) = self.update_progress;
+                        if total > 0 {
+                            let pct = current as f32 / total as f32;
+                            let mb = current / (1024 * 1024);
+                            let total_mb = total / (1024 * 1024);
+                            ui.add(
+                                egui::ProgressBar::new(pct)
+                                    .text(format!("{mb}/{total_mb} MB"))
+                                    .desired_width(200.0),
+                            );
+                        } else {
+                            ui.spinner();
+                        }
+                        ui.ctx().request_repaint();
                     }
                 });
             });
@@ -670,6 +693,11 @@ impl eframe::App for App {
                     .show(ui, |ui| {
                         ui.add_space(0.0); // ensure full width
                         let _ = ui.available_width(); // force layout to use full width
+                        // Process VPX download progress on every page so the
+                        // download completes even when the user navigates away
+                        // from the Screens page.
+                        self.process_update_check();
+
                         match self.page {
                             WizardPage::Screens => self.render_screens_page(ui),
                             WizardPage::Rendering => self.render_rendering_page(ui),

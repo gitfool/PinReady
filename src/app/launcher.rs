@@ -234,29 +234,35 @@ impl App {
                         ctx.include_bytes(uri, arc.clone());
                         self.tables[idx].bg_bytes = Some(arc);
                     }
-                    self.tables[idx].bg_path = Some(path);
+                    self.tables[idx].bg_path = Some(path.clone());
+                    log::debug!("BG extracted for table {idx}: {}", path.display());
                 }
             }
         }
     }
 
-    pub(super) fn preload_images(&mut self, ctx: &egui::Context) {
+    pub(super) fn preload_images_once(&mut self, ctx: &egui::Context) {
         if self.images_preloaded {
             return;
         }
         self.images_preloaded = true;
+        let mut count = 0;
         for (idx, table) in self.tables.iter().enumerate() {
+            if table.bg_bytes.is_some() {
+                // Already injected via scan_tables bg_bytes
+                continue;
+            }
             if let Some(ref path) = table.bg_path {
                 if let Ok(bytes) = std::fs::read(path) {
                     let uri = format!("bytes://bg/{idx}");
                     ctx.include_bytes(uri, bytes);
+                    count += 1;
                 }
             }
         }
-        log::info!(
-            "Preloaded {} images into RAM",
-            self.tables.iter().filter(|t| t.bg_path.is_some()).count()
-        );
+        if count > 0 {
+            log::info!("Preloaded {count} cached images into RAM");
+        }
     }
 
     /// Find which action is mapped to a given joystick button number.

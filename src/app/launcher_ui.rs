@@ -7,7 +7,7 @@ impl App {
         egui_extras::install_image_loaders(ui.ctx());
 
         self.process_bg_extraction(ui.ctx());
-        self.preload_images(ui.ctx());
+        self.preload_images_once(ui.ctx());
         self.handle_launcher_joystick(ui);
         self.process_vpx_status();
         self.process_update_check();
