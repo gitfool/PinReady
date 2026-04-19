@@ -7,7 +7,7 @@ use crate::config::VpxConfig;
 use crate::db::Database;
 use crate::i18n::{self, LANGUAGE_OPTIONS};
 use crate::inputs::{self, pinscape_button_defaults, CapturedInput, InputAction, JoystickEvent};
-use crate::screens::{self, DisplayInfo, DisplayRole};
+use crate::screens::{DisplayInfo, DisplayRole};
 use crate::tilt::TiltConfig;
 use crate::updater::{self, ReleaseInfo, UpdateProgress};
 use rust_i18n::t;

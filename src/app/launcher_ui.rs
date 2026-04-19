@@ -315,7 +315,7 @@ impl App {
         if self.scroll_to_selected {
             self.scroll_to_selected = false;
             let selected_row = self.selected_table / cols;
-            let total_rows = (self.tables.len() + cols - 1) / cols;
+            let total_rows = self.tables.len().div_ceil(cols);
             let visible_rows = (ui.available_height() / row_height).floor() as usize;
             let half = visible_rows / 2;
             let top_row = selected_row

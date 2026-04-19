@@ -586,6 +586,7 @@ Use `crossbeam_channel::unbounded()` for communication.
 - **First run detection** — `wizard_completed` flag in SQLite DB (not ini existence, not filesystem heuristics). `--config` CLI flag forces wizard re-entry
 - **Display enumeration order must match winit** — `screens.rs` does not reorder `self.displays` after enumeration; roles are assigned via parallel index sort. `ViewportBuilder::with_monitor(idx)` depends on this invariant
 - **Translation keys** — most `t!()` calls use string literals (static grep catches those). `input_*` action labels are looked up dynamically via `t!(action.label)` where `label` is a string field in `inputs.rs`. When auditing "dead" keys, a grep-only audit will miss these — verify via runtime usage before deleting
+- **Before every `git push`** — run `cargo fmt` and `cargo clippy --all-targets -- -D warnings`. Both must be clean. The CI enforces `cargo fmt --check` on Linux x86_64 and fails the whole release pipeline otherwise. Pushing unformatted or clippy-dirty code breaks the release build
 
 ---
 

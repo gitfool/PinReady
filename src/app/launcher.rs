@@ -139,8 +139,7 @@ impl App {
                 }
             }
         }
-        self.tables
-            .sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        self.tables.sort_by_key(|a| a.name.to_lowercase());
         log::info!("Scanned {} tables in {}", self.tables.len(), dir);
 
         // Spawn background thread to extract missing backglass images
@@ -504,11 +503,11 @@ impl App {
                 JoystickEvent::ButtonDown { button, .. } => {
                     let action = self.action_for_launcher_nav(*button);
                     match action.as_deref() {
-                        Some(a @ ("LeftFlipper" | "RightFlipper" | "LeftMagna" | "RightMagna")) => {
-                            if self.apply_nav_action(a) {
-                                let now = std::time::Instant::now();
-                                self.nav_held = Some((*button, a.to_string(), now, now));
-                            }
+                        Some(a @ ("LeftFlipper" | "RightFlipper" | "LeftMagna" | "RightMagna"))
+                            if self.apply_nav_action(a) =>
+                        {
+                            let now = std::time::Instant::now();
+                            self.nav_held = Some((*button, a.to_string(), now, now));
                         }
                         Some("Start") | Some("LaunchBall") => {
                             let path = self.tables[self.selected_table].path.clone();

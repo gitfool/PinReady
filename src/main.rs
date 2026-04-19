@@ -42,7 +42,7 @@ fn init_logging() {
     // Panic hook — panics bypass the log crate, so without this the actual
     // panic message (wgpu errors, etc.) only hits stderr and is lost if the
     // user runs detached from a terminal.
-    if let Some(file) = log_file.as_ref().map(|f| f.try_clone().ok()).flatten() {
+    if let Some(file) = log_file.as_ref().and_then(|f| f.try_clone().ok()) {
         std::panic::set_hook(Box::new(move |info| {
             use std::io::Write as _;
             let msg = format!(
