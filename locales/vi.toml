@@ -15,10 +15,8 @@ wizard_finish = "Hoàn tất"
 wizard_reset = "Đặt lại"
 
 # Language selector
-lang_label = "Ngôn ngữ"
 
 # Launcher
-launcher_title = "PinReady — Trình khởi chạy bàn"
 launcher_quit = "Thoát"
 launcher_config = "Cấu hình"
 launcher_rescan = "Quét lại"
@@ -50,7 +48,6 @@ vpx_no_version = "Không tìm thấy phiên bản. Kiểm tra kết nối của 
 vpx_extracting = "Đang giải nén..."
 vpx_install_button = "Cài đặt"
 vpx_install_error = "Lỗi: %{msg}"
-vpx_install_dir = "Thư mục cài đặt: %{path}"
 vpx_install_dir_label = "Thư mục cài đặt:"
 vpx_install_dir_picker = "Chọn thư mục cài đặt"
 vpx_install_dir_hint = "Chọn thư mục trống hoặc đường dẫn cài đặt hiện tại. Các tệp Visual Pinball sẽ được giải nén tại đây."
@@ -99,10 +96,8 @@ cabinet_eye_formula = "(chiều cao - 12cm - chiều cao lockbar)"
 rendering_heading = "Kết xuất Playfield"
 rendering_desc = "Cài đặt kết xuất đồ họa. Khuyến nghị: bắt đầu với mặc định và điều chỉnh theo hiệu năng."
 rendering_sync = "Đồng bộ:"
-rendering_sync_none = "Không đồng bộ"
 rendering_sync_none_default = "Tắt (mặc định, khuyến nghị)"
 rendering_sync_vsync = "VSync (khuyến nghị)"
-rendering_sync_vsync_default = "VSync (mặc định, khuyến nghị)"
 rendering_vsync_hint = "VSync bị tắt theo mặc định. Tốc độ khung hình đã được khóa theo tốc độ làm mới của màn hình playfield. VSync đồng bộ với màn hình chậm nhất (thường 60 Hz), quá chậm cho pinball."
 rendering_fps_limit = "Giới hạn FPS:"
 rendering_fps_info = "%{hz} Hz (tần số làm mới Playfield)"
@@ -146,6 +141,7 @@ rendering_tex_default = "16384 (mặc định, khuyến nghị)"
 # Inputs page
 inputs_heading = "Cấu hình đầu vào"
 inputs_pinscape = "Đã phát hiện Pinscape — plunger và nudge được cấu hình tự động."
+inputs_pinscape_profile = "Bo mạch điều khiển:"
 inputs_gamepad = "Dùng gamepad cho flipper, plunger và nudge"
 inputs_instructions = "Nhấn \"Ánh xạ\" rồi bấm phím hoặc nút. Escape = giữ giá trị hiện tại."
 inputs_essential = "Thao tác cần thiết"
@@ -241,6 +237,8 @@ audio_wiring_note = "Lưu ý: màu jack có thể khác nhau tùy card âm thanh
 audio_wiring_col_output = "Đầu ra jack"
 audio_wiring_col_channel = "Kênh"
 audio_wiring_col_connection = "Kết nối Pincab"
+audio_wiring_stereo_front = "Ngõ ra xanh lá (Front) -> Loa Backglass (nhạc)"
+audio_wiring_stereo_no_spatial = "Playfield: âm thanh phát từ cùng các loa, không có phân bố không gian"
 
 # Tables page
 tables_heading = "Thư mục bàn"

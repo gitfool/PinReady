@@ -17,7 +17,7 @@ fn parse_progress_pct(msg: &str) -> Option<f32> {
 }
 
 impl App {
-    pub(super) fn finalize_wizard(&mut self, _ctx: &egui::Context) {
+    pub(super) fn finalize_wizard(&mut self, ctx: &egui::Context) {
         // Save ALL pages
         self.save_screens();
         self.save_rendering();
@@ -48,6 +48,42 @@ impl App {
         // Scan tables and switch to launcher mode
         self.scan_tables();
         self.mode = AppMode::Launcher;
+
+        // Apply cabinet mode live if BGSet=1. OuterPosition on a mapped window
+        // may be ignored by Mutter/GNOME — a cold restart is then more reliable
+        // (the next run creates the window directly at the PF position).
+        self.enter_cabinet_mode_if_configured(ctx);
+    }
+
+    /// If config has BGSet=1 and a Playfield display is known, rotate the
+    /// viewport CW90 and move it to the PF monitor via SetMonitor. Cursor
+    /// lock + warp are enabled via enable_kiosk_cursor.
+    pub(super) fn enter_cabinet_mode_if_configured(&mut self, ctx: &egui::Context) {
+        let cabinet = self.config.get_i32("Player", "BGSet") == Some(1);
+        if !cabinet {
+            return;
+        }
+        let playfield_name = match self.config.get("Player", "PlayfieldDisplay") {
+            Some(n) if !n.is_empty() => n,
+            _ => return,
+        };
+        let idx = match self.displays.iter().position(|d| d.name == playfield_name) {
+            Some(i) => i,
+            None => {
+                log::warn!(
+                    "Cabinet mode requested but Playfield display '{}' not found",
+                    playfield_name
+                );
+                return;
+            }
+        };
+        log::info!(
+            "Entering cabinet mode live: rotating CW90, moving to monitor {}",
+            idx
+        );
+        ctx.set_viewport_rotation(eframe::emath::ViewportRotation::CW90);
+        ctx.send_viewport_cmd(egui::ViewportCommand::SetMonitor(idx));
+        self.enable_kiosk_cursor();
     }
 
     pub(super) fn scan_tables(&mut self) {
@@ -385,6 +421,55 @@ impl App {
         None
     }
 
+    /// Unified exit: release cursor capture (otherwise the OS cursor stays
+    /// hidden while the window tears down), then request window close.
+    /// Called from the Quit button, ExitGame joystick action, and Escape key.
+    pub(super) fn quit_launcher(&self, ctx: &egui::Context) {
+        ctx.set_cursor_lock(false);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
+    /// Apply a repeatable launcher navigation action. Returns true if applied.
+    pub(super) fn apply_nav_action(&mut self, action: &str) -> bool {
+        let len = self.tables.len();
+        let cols = self.launcher_cols.max(1);
+        match action {
+            "LeftFlipper" => {
+                self.selected_table = if self.selected_table > 0 {
+                    self.selected_table - 1
+                } else {
+                    len - 1
+                };
+                self.scroll_to_selected = true;
+                true
+            }
+            "RightFlipper" => {
+                self.selected_table = (self.selected_table + 1) % len;
+                self.scroll_to_selected = true;
+                true
+            }
+            "LeftMagna" => {
+                self.selected_table = if self.selected_table >= cols {
+                    self.selected_table - cols
+                } else {
+                    (len - 1).min(self.selected_table + len - cols)
+                };
+                self.scroll_to_selected = true;
+                true
+            }
+            "RightMagna" => {
+                self.selected_table = if self.selected_table + cols < len {
+                    self.selected_table + cols
+                } else {
+                    self.selected_table % cols
+                };
+                self.scroll_to_selected = true;
+                true
+            }
+            _ => false,
+        }
+    }
+
     pub(super) fn handle_launcher_joystick(&mut self, ui: &mut egui::Ui) {
         let vpx_running = self.vpx_running.load(Ordering::Relaxed);
         // Drain joystick events into a local vec to avoid borrow conflict
@@ -398,53 +483,48 @@ impl App {
             return;
         }
 
-        let len = self.tables.len();
-        let cols = self.launcher_cols.max(1);
+        // Key-repeat for held nav button: 400ms initial delay, then 80ms interval
+        const INITIAL_DELAY: std::time::Duration = std::time::Duration::from_millis(400);
+        const REPEAT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(80);
+        if let Some((_, action, pressed_at, last_fire)) = self.nav_held.clone() {
+            let now = std::time::Instant::now();
+            if now.duration_since(pressed_at) >= INITIAL_DELAY
+                && now.duration_since(last_fire) >= REPEAT_INTERVAL
+                && self.apply_nav_action(&action)
+            {
+                if let Some(held) = self.nav_held.as_mut() {
+                    held.3 = now;
+                }
+                ui.ctx().request_repaint();
+            }
+        }
+
         for event in events {
             match &event {
                 JoystickEvent::ButtonDown { button, .. } => {
                     let action = self.action_for_launcher_nav(*button);
                     match action.as_deref() {
-                        Some("LeftFlipper") => {
-                            if self.selected_table > 0 {
-                                self.selected_table -= 1;
-                            } else {
-                                self.selected_table = len - 1;
+                        Some(a @ ("LeftFlipper" | "RightFlipper" | "LeftMagna" | "RightMagna")) => {
+                            if self.apply_nav_action(a) {
+                                let now = std::time::Instant::now();
+                                self.nav_held = Some((*button, a.to_string(), now, now));
                             }
-                            self.scroll_to_selected = true;
                         }
-                        Some("RightFlipper") => {
-                            self.selected_table = (self.selected_table + 1) % len;
-                            self.scroll_to_selected = true;
-                        }
-                        Some("LeftMagna") => {
-                            if self.selected_table >= cols {
-                                self.selected_table -= cols;
-                            } else {
-                                self.selected_table =
-                                    (len - 1).min(self.selected_table + len - cols);
-                            }
-                            self.scroll_to_selected = true;
-                        }
-                        Some("RightMagna") => {
-                            if self.selected_table + cols < len {
-                                self.selected_table += cols;
-                            } else {
-                                self.selected_table %= cols;
-                            }
-                            self.scroll_to_selected = true;
-                        }
-                        Some("Start") => {
+                        Some("Start") | Some("LaunchBall") => {
                             let path = self.tables[self.selected_table].path.clone();
                             self.launch_table(&path);
                         }
-                        Some("LaunchBall") => {
-                            self.mode = AppMode::Wizard;
-                        }
                         Some("ExitGame") => {
-                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            self.quit_launcher(ui.ctx());
                         }
                         _ => {}
+                    }
+                }
+                JoystickEvent::ButtonUp { button, .. } => {
+                    if let Some((held_btn, _, _, _)) = &self.nav_held {
+                        if held_btn == button {
+                            self.nav_held = None;
+                        }
                     }
                 }
                 JoystickEvent::AccelUpdate { .. } => {}
@@ -453,7 +533,7 @@ impl App {
         }
     }
 
-    pub(super) fn process_vpx_status(&mut self) {
+    pub(super) fn process_vpx_status(&mut self, ctx: &egui::Context) {
         if let Some(rx) = &self.vpx_status_rx {
             while let Ok(status) = rx.try_recv() {
                 match status {
@@ -465,12 +545,18 @@ impl App {
                         self.vpx_loading_msg = "Startup done".to_string();
                         self.vpx_loading_pct = None;
                         self.vpx_hide_covers = true;
+                        // Release cursor lock so VPX gets the mouse. Focus is
+                        // released naturally because the kiosk focus-reclaim
+                        // loop is gated on !vpx_running. VPX windows then
+                        // z-order on top of PinReady.
+                        ctx.set_cursor_lock(false);
                     }
                     VpxStatus::ExitOk => {
                         self.vpx_loading_msg.clear();
                         self.vpx_loading_pct = None;
                         self.vpx_hide_covers = false;
                         self.vpx_status_rx = None;
+                        self.restore_kiosk_after_vpx(ctx);
                         return;
                     }
                     VpxStatus::ExitError(log) => {
@@ -478,6 +564,7 @@ impl App {
                         self.vpx_hide_covers = false;
                         self.vpx_error_log = Some(log);
                         self.vpx_status_rx = None;
+                        self.restore_kiosk_after_vpx(ctx);
                         return;
                     }
                     VpxStatus::LaunchError(msg) => {
@@ -485,10 +572,20 @@ impl App {
                         self.vpx_hide_covers = false;
                         self.vpx_error_log = Some(msg);
                         self.vpx_status_rx = None;
+                        self.restore_kiosk_after_vpx(ctx);
                         return;
                     }
                 }
             }
+        }
+    }
+
+    /// When VPX exits, trigger re-warp + re-focus on the next frame. The
+    /// kiosk_cursor loop in App::ui handles the actual Focus + CursorPosition
+    /// commands once vpx_running flips to false.
+    fn restore_kiosk_after_vpx(&mut self, _ctx: &egui::Context) {
+        if self.kiosk_cursor {
+            self.kiosk_cursor_warped = false;
         }
     }
 

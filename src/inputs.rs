@@ -69,6 +69,10 @@ pub enum JoystickEvent {
         button: u8,
         name: String,
     },
+    ButtonUp {
+        device_id: String,
+        button: u8,
+    },
     #[allow(dead_code)]
     AxisMotion {
         device_id: String,
@@ -750,6 +754,11 @@ pub fn spawn_joystick_thread() -> crossbeam_channel::Receiver<JoystickEvent> {
                                 device_id: js.vpx_id.clone(),
                                 button: b as u8,
                                 name: js.button_names[idx].clone(),
+                            });
+                        } else if !pressed && was_pressed {
+                            let _ = evt_tx.send(JoystickEvent::ButtonUp {
+                                device_id: js.vpx_id.clone(),
+                                button: b as u8,
                             });
                         }
                         js.prev_buttons[idx] = pressed;

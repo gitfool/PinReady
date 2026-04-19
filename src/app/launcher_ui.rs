@@ -9,7 +9,7 @@ impl App {
         self.process_bg_extraction(ui.ctx());
         self.preload_images_once(ui.ctx());
         self.handle_launcher_joystick(ui);
-        self.process_vpx_status();
+        self.process_vpx_status(ui.ctx());
         self.process_update_check();
         // Only repaint when needed: bg extraction in progress, VPX running, joystick connected, or update in progress
         if self.bg_rx.is_some()
@@ -21,116 +21,80 @@ impl App {
             ui.ctx().request_repaint();
         }
 
-        // Keyboard navigation in launcher
+        // Keyboard + mouse wheel nav — same actions as joystick for a single
+        // source of truth. Arrows = flipper/magna, wheel = flipper, Enter = launch, Escape = quit.
+        enum NavInput {
+            Key(egui::Key),
+            WheelUp,
+            WheelDown,
+        }
         if !self.tables.is_empty() && !self.vpx_running.load(Ordering::Relaxed) {
-            let len = self.tables.len();
-            let cols = self.launcher_cols.max(1);
-            ui.input(|i| {
-                for event in &i.events {
-                    if let egui::Event::Key {
-                        key, pressed: true, ..
-                    } = event
-                    {
-                        match key {
-                            egui::Key::ArrowLeft => {
-                                self.selected_table = if self.selected_table > 0 {
-                                    self.selected_table - 1
-                                } else {
-                                    len - 1
-                                };
-                                self.scroll_to_selected = true;
-                            }
-                            egui::Key::ArrowRight => {
-                                self.selected_table = (self.selected_table + 1) % len;
-                                self.scroll_to_selected = true;
-                            }
-                            egui::Key::ArrowUp => {
-                                self.selected_table = if self.selected_table >= cols {
-                                    self.selected_table - cols
-                                } else {
-                                    self.selected_table
-                                };
-                                self.scroll_to_selected = true;
-                            }
-                            egui::Key::ArrowDown => {
-                                self.selected_table = if self.selected_table + cols < len {
-                                    self.selected_table + cols
-                                } else {
-                                    self.selected_table
-                                };
-                                self.scroll_to_selected = true;
-                            }
-                            egui::Key::Enter => {
-                                let path = self.tables[self.selected_table].path.clone();
-                                self.launch_table(&path);
-                            }
-                            egui::Key::Escape => {
-                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                            }
-                            _ => {}
+            let inputs: Vec<NavInput> = ui.input(|i| {
+                i.events
+                    .iter()
+                    .filter_map(|e| match e {
+                        egui::Event::Key {
+                            key, pressed: true, ..
+                        } => Some(NavInput::Key(*key)),
+                        egui::Event::MouseWheel { delta, .. } if delta.y > 0.0 => {
+                            Some(NavInput::WheelUp)
                         }
-                    }
-                }
+                        egui::Event::MouseWheel { delta, .. } if delta.y < 0.0 => {
+                            Some(NavInput::WheelDown)
+                        }
+                        _ => None,
+                    })
+                    .collect()
             });
-        }
-
-        // Multi-screen: position main window (table selector) on the right display
-        // 2 screens: selector on Playfield, BG viewport on Backglass
-        // 3+ screens: selector on DMD, BG viewport on Backglass, cover on Playfield (+Topper)
-        let has_dmd = self.displays.iter().any(|d| d.role == DisplayRole::Dmd);
-        let has_bg = self
-            .displays
-            .iter()
-            .any(|d| d.role == DisplayRole::Backglass);
-        if has_dmd {
-            // 3+ screens: main window on DMD
-            if let Some(dmd) = self.displays.iter().find(|d| d.role == DisplayRole::Dmd) {
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-                        dmd.x as f32,
-                        dmd.y as f32,
-                    )));
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
-                        dmd.width as f32,
-                        dmd.height as f32,
-                    )));
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::Decorations(false));
-            }
-        } else if has_bg {
-            // 2 screens (PF + BG): main window on Playfield
-            if let Some(pf) = self
-                .displays
-                .iter()
-                .find(|d| d.role == DisplayRole::Playfield)
-            {
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-                        pf.x as f32,
-                        pf.y as f32,
-                    )));
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
-                        pf.width as f32,
-                        pf.height as f32,
-                    )));
-                ui.ctx()
-                    .send_viewport_cmd(egui::ViewportCommand::Decorations(false));
+            for input in inputs {
+                match input {
+                    NavInput::Key(egui::Key::ArrowLeft) => {
+                        self.apply_nav_action("LeftFlipper");
+                    }
+                    NavInput::Key(egui::Key::ArrowRight) => {
+                        self.apply_nav_action("RightFlipper");
+                    }
+                    NavInput::Key(egui::Key::ArrowUp) | NavInput::WheelUp => {
+                        self.apply_nav_action("LeftMagna");
+                    }
+                    NavInput::Key(egui::Key::ArrowDown) | NavInput::WheelDown => {
+                        self.apply_nav_action("RightMagna");
+                    }
+                    NavInput::Key(egui::Key::Enter) => {
+                        let path = self.tables[self.selected_table].path.clone();
+                        self.launch_table(&path);
+                    }
+                    NavInput::Key(egui::Key::Escape) => {
+                        self.quit_launcher(ui.ctx());
+                    }
+                    _ => {}
+                }
             }
         }
 
+        // Window placement handled via ViewportBuilder::with_monitor (main PF)
+        // and render_cover_viewports (BG/DMD/Topper).
+
+        // Header scaled x3 — kiosk mode runs on big 4K PFs where the default
+        // header was unreadable from a pincab play distance.
+        let h_size = 72.0;
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new(t!("launcher_title"))
-                    .size(24.0)
+                egui::RichText::new(format!("PinReady v{}", env!("CARGO_PKG_VERSION")))
+                    .size(h_size)
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(t!("launcher_quit")).clicked() {
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                if ui
+                    .button(egui::RichText::new(t!("launcher_quit")).size(h_size))
+                    .clicked()
+                {
+                    self.quit_launcher(ui.ctx());
                 }
-                if ui.button(t!("launcher_config")).clicked() {
+                if ui
+                    .button(egui::RichText::new(t!("launcher_config")).size(h_size))
+                    .clicked()
+                {
                     self.mode = AppMode::Wizard;
                 }
                 // Update button — visible when a new release is available
@@ -155,7 +119,8 @@ impl App {
                 } else if let Some(release) = self.vpx_latest_release.clone() {
                     let btn = ui.button(
                         egui::RichText::new(t!("update_button", tag = release.tag.as_str()))
-                            .color(egui::Color32::from_rgb(100, 200, 100)),
+                            .color(egui::Color32::from_rgb(100, 200, 100))
+                            .size(h_size),
                     );
                     if btn.clicked() {
                         self.start_vpx_download(&release);
@@ -208,9 +173,9 @@ impl App {
                 };
 
                 let text = if let Some(color) = btn_color {
-                    egui::RichText::new(&label).color(color)
+                    egui::RichText::new(&label).color(color).size(h_size)
                 } else {
-                    egui::RichText::new(&label)
+                    egui::RichText::new(&label).size(h_size)
                 };
                 let rescan_btn = ui.button(text);
 
@@ -344,12 +309,19 @@ impl App {
         let mut scroll_area = egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
 
-        // Auto-scroll to selected table when navigating with joystick
+        // Auto-scroll to selected table when navigating with joystick.
+        // Keep the selected row centered in the viewport; clamp at start/end so
+        // we don't scroll past the content.
         if self.scroll_to_selected {
             self.scroll_to_selected = false;
-            // Compute the row of the selected table and scroll to it
             let selected_row = self.selected_table / cols;
-            let target_y = selected_row as f32 * row_height;
+            let total_rows = (self.tables.len() + cols - 1) / cols;
+            let visible_rows = (ui.available_height() / row_height).floor() as usize;
+            let half = visible_rows / 2;
+            let top_row = selected_row
+                .saturating_sub(half)
+                .min(total_rows.saturating_sub(visible_rows));
+            let target_y = top_row as f32 * row_height;
             scroll_area = scroll_area.vertical_scroll_offset(target_y);
         }
 
@@ -382,7 +354,14 @@ impl App {
                             egui::Sense::click(),
                         );
 
-                        if response.hovered() {
+                        // Only let hover drive selection when the cursor is actively
+                        // moving. If the user presses a flipper/magna (no mouse motion),
+                        // joystick/keyboard navigation wins and the stale hover doesn't
+                        // snap selected_table back under the cursor.
+                        let mouse_moved_recently = ui
+                            .ctx()
+                            .input(|i| i.pointer.time_since_last_movement() < 0.3);
+                        if response.hovered() && mouse_moved_recently {
                             self.selected_table = idx;
                         }
                         if response.clicked() {
@@ -477,43 +456,24 @@ impl App {
         }
 
         if !self.vpx_hide_covers {
-            self.render_cover_viewports(ui, has_dmd);
+            self.render_cover_viewports(ui);
         }
     }
 
-    /// Show logo cover on Playfield/Topper and backglass preview on BG display.
-    #[allow(deprecated)] // CentralPanel::show() required in viewport callbacks (no Ui available)
-    fn render_cover_viewports(&self, ui: &mut egui::Ui, has_dmd: bool) {
-        // Playfield cover (3+ screens only — with 2 screens, PF hosts the table selector)
-        if has_dmd {
-            if let Some(pf) = self
-                .displays
-                .iter()
-                .find(|d| d.role == DisplayRole::Playfield)
-            {
-                let bounds = (pf.x as f32, pf.y as f32, pf.width as f32, pf.height as f32);
-                Self::show_logo_viewport(
-                    ui,
-                    PF_VIEWPORT,
-                    "PinReady — Playfield",
-                    bounds,
-                    Some(270.0_f32.to_radians()),
-                );
-            }
-        }
-
-        // Backglass preview
-        if let Some(bg) = self
+    /// Backglass image on BG, VPX logo cover on DMD and Topper.
+    /// Uses `with_monitor(idx)` to place each viewport — same mechanism as the
+    /// main PF viewport. Monitor index = position in `self.displays`.
+    fn render_cover_viewports(&self, ui: &mut egui::Ui) {
+        // Backglass image
+        if let Some(bg_idx) = self
             .displays
             .iter()
-            .find(|d| d.role == DisplayRole::Backglass)
+            .position(|d| d.role == DisplayRole::Backglass)
         {
             if !self.tables.is_empty() {
                 let selected = self.selected_table.min(self.tables.len() - 1);
                 let table_name = self.tables[selected].name.clone();
                 let bg_bytes = self.tables[selected].bg_bytes.clone();
-                let (bg_x, bg_y, bg_w, bg_h) =
-                    (bg.x as f32, bg.y as f32, bg.width as f32, bg.height as f32);
 
                 let bg_viewport_id = egui::ViewportId::from_hash_of(BG_VIEWPORT);
                 ui.ctx().request_repaint_of(bg_viewport_id);
@@ -521,21 +481,17 @@ impl App {
                     bg_viewport_id,
                     egui::ViewportBuilder::default()
                         .with_title("PinReady — Backglass")
-                        .with_position(egui::pos2(bg_x, bg_y))
-                        .with_inner_size(egui::vec2(bg_w, bg_h))
                         .with_decorations(false)
-                        .with_override_redirect(true),
-                    move |ctx, _class| {
-                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-                            bg_x, bg_y,
-                        )));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
-                            bg_w, bg_h,
-                        )));
-                        egui_extras::install_image_loaders(ctx);
+                        .with_monitor(bg_idx)
+                        .with_rotation(eframe::emath::ViewportRotation::None)
+                        .with_active(false),
+                    move |ui, _class| {
+                        let ctx = ui.ctx().clone();
+                        ctx.set_viewport_rotation(eframe::emath::ViewportRotation::None);
+                        egui_extras::install_image_loaders(&ctx);
                         egui::CentralPanel::default()
                             .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
-                            .show(ctx, |ui| {
+                            .show_inside(ui, |ui| {
                                 if let Some(ref bytes) = bg_bytes {
                                     let uri = format!("bytes://viewport_bg/{selected}");
                                     ctx.include_bytes(uri.clone(), bytes.clone());
@@ -556,49 +512,63 @@ impl App {
             }
         }
 
-        // Topper cover (3+ screens only)
-        if has_dmd {
-            if let Some(tp) = self.displays.iter().find(|d| d.role == DisplayRole::Topper) {
-                let bounds = (tp.x as f32, tp.y as f32, tp.width as f32, tp.height as f32);
-                Self::show_logo_viewport(ui, TOPPER_VIEWPORT, "PinReady — Topper", bounds, None);
-            }
+        // DMD cover
+        if let Some(dmd_idx) = self.displays.iter().position(|d| d.role == DisplayRole::Dmd) {
+            Self::show_logo_viewport(
+                ui,
+                PF_VIEWPORT,
+                "PinReady — DMD",
+                dmd_idx,
+                eframe::emath::ViewportRotation::None,
+            );
+        }
+
+        // Topper cover
+        if let Some(tp_idx) = self
+            .displays
+            .iter()
+            .position(|d| d.role == DisplayRole::Topper)
+        {
+            Self::show_logo_viewport(
+                ui,
+                TOPPER_VIEWPORT,
+                "PinReady — Topper",
+                tp_idx,
+                eframe::emath::ViewportRotation::None,
+            );
         }
     }
 
-    /// Show a viewport with the VPX logo on a grey background.
-    #[allow(deprecated)] // CentralPanel::show() required in viewport callbacks (no Ui available)
+    /// Show a viewport with the VPX logo on a grey background, placed
+    /// borderless fullscreen on the given monitor index.
     fn show_logo_viewport(
         ui: &mut egui::Ui,
         id: &'static str,
         title: &str,
-        bounds: (f32, f32, f32, f32),
-        rotation: Option<f32>,
+        monitor_idx: usize,
+        rotation: eframe::emath::ViewportRotation,
     ) {
-        let (x, y, w, h) = bounds;
         let viewport_id = egui::ViewportId::from_hash_of(id);
         ui.ctx().show_viewport_deferred(
             viewport_id,
             egui::ViewportBuilder::default()
                 .with_title(title)
-                .with_position(egui::pos2(x, y))
-                .with_inner_size(egui::vec2(w, h))
                 .with_decorations(false)
-                .with_override_redirect(true),
-            move |ctx, _class| {
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(x, y)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w, h)));
-                egui_extras::install_image_loaders(ctx);
+                .with_monitor(monitor_idx)
+                .with_rotation(rotation)
+                .with_active(false),
+            move |ui, _class| {
+                let ctx = ui.ctx().clone();
+                ctx.set_viewport_rotation(rotation);
+                egui_extras::install_image_loaders(&ctx);
                 ctx.include_bytes("bytes://vpx_logo", VPX_LOGO);
                 egui::CentralPanel::default()
                     .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(80, 80, 85)))
-                    .show(ctx, |ui| {
+                    .show_inside(ui, |ui| {
                         ui.centered_and_justified(|ui| {
-                            let mut img = egui::Image::new("bytes://vpx_logo")
+                            let img = egui::Image::new("bytes://vpx_logo")
                                 .max_size(egui::vec2(512.0, 512.0))
                                 .tint(egui::Color32::from_rgba_premultiplied(180, 180, 190, 200));
-                            if let Some(angle) = rotation {
-                                img = img.rotate(angle, egui::vec2(0.5, 0.5));
-                            }
                             ui.add(img);
                         });
                     });

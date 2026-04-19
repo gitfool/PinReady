@@ -15,10 +15,8 @@ wizard_finish = "إنهاء"
 wizard_reset = "إعادة تعيين"
 
 # Language selector
-lang_label = "اللغة"
 
 # Launcher
-launcher_title = "PinReady — مشغّل الطاولات"
 launcher_quit = "خروج"
 launcher_config = "الإعدادات"
 launcher_rescan = "إعادة الفحص"
@@ -50,7 +48,6 @@ vpx_no_version = "لم يتم العثور على إصدار. تحقق من ات
 vpx_extracting = "جارٍ الاستخراج..."
 vpx_install_button = "تثبيت"
 vpx_install_error = "خطأ: %{msg}"
-vpx_install_dir = "مجلد التثبيت: %{path}"
 vpx_install_dir_label = "مجلد التثبيت:"
 vpx_install_dir_picker = "اختر مجلد التثبيت"
 vpx_install_dir_hint = "اختر مجلداً فارغاً أو مسار التثبيت الحالي. سيتم استخراج ملفات Visual Pinball هنا."
@@ -99,10 +96,8 @@ cabinet_eye_formula = "(الطول - 12cm - ارتفاع شريط القفل)"
 rendering_heading = "عرض Playfield"
 rendering_desc = "إعدادات العرض الرسومي. التوصية: ابدأ بالإعدادات الافتراضية ثم عدّل حسب الأداء."
 rendering_sync = "المزامنة:"
-rendering_sync_none = "بدون مزامنة"
 rendering_sync_none_default = "معطل (افتراضي، موصى به)"
 rendering_sync_vsync = "VSync (موصى به)"
-rendering_sync_vsync_default = "VSync (افتراضي، موصى به)"
 rendering_vsync_hint = "تم تعطيل VSync افتراضياً. معدل الإطارات مقفل بالفعل على معدل تحديث شاشة الملعب. يتزامن VSync مع أبطأ شاشة (غالباً 60 هرتز)، وهو بطيء جداً للفليبر."
 rendering_fps_limit = "حد الإطارات:"
 rendering_fps_info = "%{hz} Hz (معدل تحديث Playfield)"
@@ -146,6 +141,7 @@ rendering_tex_default = "16384 (افتراضي، موصى به)"
 # Inputs page
 inputs_heading = "إعداد المدخلات"
 inputs_pinscape = "تم اكتشاف Pinscape — تم إعداد المكبس والدفع تلقائياً."
+inputs_pinscape_profile = "لوحة وحدة التحكم:"
 inputs_gamepad = "استخدم يد التحكم للزعانف والمكبس والدفع"
 inputs_instructions = "انقر \"تعيين\" ثم اضغط مفتاحاً أو زراً. Escape = الإبقاء على القيمة الحالية."
 inputs_essential = "الإجراءات الأساسية"
@@ -241,6 +237,8 @@ audio_wiring_note = "ملاحظة: قد تختلف ألوان مقابس jack ح
 audio_wiring_col_output = "مخرج Jack"
 audio_wiring_col_channel = "القناة"
 audio_wiring_col_connection = "توصيلة Pincab"
+audio_wiring_stereo_front = "الخرج الأخضر (الأمامي) -> سماعات Backglass (الموسيقى)"
+audio_wiring_stereo_no_spatial = "Playfield: الصوت يخرج من نفس السماعات، بدون تحديد مكاني"
 
 # Tables page
 tables_heading = "مجلد الطاولات"

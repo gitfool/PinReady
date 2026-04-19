@@ -39,7 +39,21 @@ fn init_logging() {
 
     let log_file = std::fs::File::create(&log_path).ok();
 
-    env_logger::Builder::from_default_env()
+    // Panic hook — panics bypass the log crate, so without this the actual
+    // panic message (wgpu errors, etc.) only hits stderr and is lost if the
+    // user runs detached from a terminal.
+    if let Some(file) = log_file.as_ref().map(|f| f.try_clone().ok()).flatten() {
+        std::panic::set_hook(Box::new(move |info| {
+            use std::io::Write as _;
+            let msg = format!("\n!!! PANIC: {}\n{:?}\n", info, std::backtrace::Backtrace::capture());
+            let _ = (&file).write_all(msg.as_bytes());
+            eprintln!("{msg}");
+        }));
+    }
+
+    // Default to `info` so launcher diagnostics (kiosk bounds, display roles, etc.)
+    // land in the log file. RUST_LOG env var still overrides if set.
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format(move |buf, record| {
             let ts = buf.timestamp_seconds();
             let line = format!(
@@ -104,25 +118,60 @@ fn main() -> Result<()> {
 
     // Determine start mode:
     // - --config flag → wizard
-    // - No VPX ini file → wizard (first run)
+    // - DB not marked as configured (first run, wiped DB, etc.) → wizard
     // - Otherwise → launcher
-    let ini_path = std::path::Path::new(&std::env::var("HOME").unwrap_or_default())
-        .join(".local/share/VPinballX/10.8/VPinballX.ini");
-    let start_in_wizard = force_config || !ini_path.exists();
+    let configured = db.get_config("wizard_completed").as_deref() == Some("true");
+    let start_in_wizard = force_config || !configured;
     if start_in_wizard {
         log::info!("Starting in configuration wizard mode");
     } else {
         log::info!("Starting in launcher mode");
     }
 
-    // Create app (starts joystick + audio threads internally)
-    let app = app::App::new(vpx_config, db, start_in_wizard);
+    // Enumerate displays once — shared between kiosk lookup and App state.
+    let displays = screens::enumerate_displays();
 
-    // Launch eframe
+    // Detect Cabinet mode (BGSet=1) → rotate viewport and place on Playfield.
+    // Only applies in launcher mode — the wizard must always run in a standard,
+    // non-rotated window since it's where the user configures cabinet mode.
+    let cabinet_mode =
+        !start_in_wizard && vpx_config.get_i32("Player", "BGSet") == Some(1);
+    let playfield_name = vpx_config.get("Player", "PlayfieldDisplay");
+    let playfield_idx = if cabinet_mode {
+        playfield_name
+            .as_ref()
+            .and_then(|name| displays.iter().position(|d| &d.name == name))
+    } else {
+        None
+    };
+
+    // Create app (starts joystick + audio threads internally)
+    let mut app = app::App::new(vpx_config, db, start_in_wizard, displays);
+
+    // Launch eframe. Wizard UI is style-scaled x2 so we start with a window
+    // large enough to show all breadcrumbs + content comfortably.
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(format!("PinReady v{VERSION}"))
+        .with_inner_size([1800.0, 1100.0]);
+    if cabinet_mode {
+        viewport = viewport
+            .with_rotation(eframe::emath::ViewportRotation::CW90)
+            .with_decorations(false);
+        if let Some(idx) = playfield_idx {
+            log::info!(
+                "Cabinet mode: rotating launcher CW90 on monitor index {}",
+                idx
+            );
+            viewport = viewport.with_monitor(idx);
+            // kiosk_bounds drives cursor lock + warp to grid center after the
+            // window is mapped. Placement itself is handled by with_monitor.
+            app.enable_kiosk_cursor();
+        } else {
+            log::warn!("Cabinet mode: Playfield display not found, rotation applied without repositioning");
+        }
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title(format!("PinReady v{VERSION}"))
-            .with_inner_size([1000.0, 1000.0]),
+        viewport,
         ..Default::default()
     };
 

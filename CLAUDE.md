@@ -9,8 +9,10 @@ It replaces the non-existent native configuration tools for VPX standalone (SDL3
 **Target: VPinballX 10.8.1** — uses the new folder-per-table layout.
 **Cross-platform** — Linux, macOS, Windows. No platform-specific APIs (no Win32, no xrandr). SDL3 only.
 
-**First run** (detected by uninitialized SQLite DB) → configuration wizard.
-**Subsequent runs** → table selector / launcher. Wizard can be re-launched; all fields pre-filled from current ini values.
+**First run** (detected by `wizard_completed` flag in SQLite DB) → configuration wizard.
+**Subsequent runs** → table selector / launcher. Wizard can be re-launched with `--config` flag or from the launcher header button; all fields pre-filled from current ini values.
+
+**Current version:** 0.6.0 (see `Cargo.toml`).
 
 ---
 
@@ -18,18 +20,34 @@ It replaces the non-existent native configuration tools for VPX standalone (SDL3
 
 | Layer | Crate | Role |
 |---|---|---|
-| UI | `eframe 0.33` + `egui 0.33` | Immediate mode GUI |
-| Images | `egui_extras 0.33` (feature: `image`) | Thumbnail display |
+| UI | `eframe 0.34` + `egui 0.34` (Le-Syl21 fork) | Immediate mode GUI |
+| Images | `egui_extras 0.34` (feature: `image`) | Thumbnail display |
 | Display/Input | `sdl3-sys 0.6` (feature: `build-from-source-static`) | Screen enumeration + input capture |
-| Config | `serde 1` + `ini 1.3` | Read/write VPinballX.ini (Windows-style .ini format) |
-| Database | `rusqlite 0.38` (feature: `bundled`) | Local table catalog |
+| Config | `serde 1` + `ini-preserve` | Read/write VPinballX.ini (preserves comments) |
+| Database | `rusqlite 0.39` (feature: `bundled`) | Local catalog + PinReady config |
+| Backglass | `directb2s 0.1` | Extract backglass image from `.directb2s` |
+| Display info | `display-info 0.5` | Cross-platform EDID (physical mm → inches) |
 | File scan | `walkdir 2.5` | Recursive .vpx discovery |
-| Images | `image 0.25` (features: `png`, `jpeg`) | Media pack thumbnails |
+| Image codec | `image 0.25` (features: `png`, `jpeg`) | Media pack thumbnails |
 | Audio decode | `symphonia 0.5` (features: `ogg`, `vorbis`, `mp3`, `pcm`, `wav`) | Decode OGG/MP3 → PCM for SDL3 |
+| i18n | `rust-i18n 3` | 26 locale files in `locales/` |
+| HTTP | `ureq 3` + `zip 8` | GitHub release downloader for VPX fork |
 | Threading | `crossbeam-channel 0.5` | SDL3 thread ↔ egui communication |
 | Logging | `log 0.4` + `env_logger 0.11` | Debug output |
 
-**No system dependencies required** — SDL3 and SQLite are statically linked via bundled features.
+**No system dependencies required at runtime** — SDL3 and SQLite are statically linked via bundled features. Build-time deps are the standard xcb/xkb/ssl headers for winit.
+
+### Forked egui (Le-Syl21/egui)
+
+PinReady uses a fork of egui pinned in `[patch.crates-io]` because kiosk/cabinet mode needs features not upstream:
+
+- **Viewport rotation** (`with_rotation`, `set_viewport_rotation`) — rotate UI + input CW90/180/270 for cabinets where the Playfield is physically rotated
+- **Cursor lock** (`set_cursor_lock`) — confine virtual cursor to window bounds
+- **Software cursor scale** — draw a readable cursor on 4K playfields
+- **`with_monitor(index)`** — target a specific monitor at creation (borderless fullscreen on the requested output; only portable way to target an output under Wayland)
+- **`tessellate_for_viewport(viewport_id, …)`** — fixes a bug where root's rotation leaked into secondary viewports because `tessellate` was called after `viewport_stack.pop()`
+
+Fork branch: `viewport-rotation-cursor-lock` on `Le-Syl21/egui`. Rev pinned in `Cargo.toml`.
 
 ---
 
@@ -37,17 +55,31 @@ It replaces the non-existent native configuration tools for VPX standalone (SDL3
 
 ```
 src/
-  main.rs         # Entry point, first-run detection, eframe launch
-  app.rs          # Main App struct implementing eframe::App, page routing
-  screens.rs      # SDL3 display enumeration + heuristic auto-assignment
-  inputs.rs       # Input mapping: SDL3 event loop on dedicated thread
-  tilt.rs         # Tilt/nudge sensitivity configuration
-  audio.rs        # Audio device detection + routing configuration
-  launcher.rs     # Table selector: scan, list, launch VPX subprocess
-  assets.rs       # Asset detection per table
-  config.rs       # VPinballX.ini read/write (ini crate)
-  db.rs           # SQLite catalog (table path, name, year, media paths)
+  main.rs         # Entry point: CLI, logging, SDL init, cabinet-mode launch options
+  screens.rs      # SDL3 display enumeration + role assignment (keeps native order!)
+  inputs.rs       # Joystick thread (SDL3), controller profile detection, input actions
+  tilt.rs         # Tilt/nudge sensitivity settings
+  audio.rs        # Audio device detection, routing, ogg/mp3 playback thread
+  assets.rs       # Backglass extraction + cache
+  config.rs       # VPinballX.ini read/write (preserves comments via ini-preserve)
+  db.rs           # SQLite: tables catalog + PinReady config (wizard_completed, etc.)
+  updater.rs      # VPX-fork auto-install from GitHub releases
+  i18n.rs         # Language detection + locale loading (26 languages)
+  app/
+    mod.rs            # App struct, eframe::App impl, kiosk cursor loop
+    launcher.rs       # VPX subprocess mgmt, status polling, joystick nav
+    launcher_ui.rs    # Grid view, secondary viewports (BG/DMD/Topper covers)
+    screens_page.rs   # Wizard page 1: screens + cabinet dimensions + VPX install
+    rendering_page.rs # Wizard page 2: MSAA/FXAA/sync/max framerate
+    inputs_page.rs    # Wizard page 3: controller profile + key/button capture
+    tilt_page.rs      # Wizard page 4: tilt/nudge sliders
+    audio_page.rs     # Wizard page 5: device routing + SSF test sequence
+    tables_dir_page.rs# Wizard page 6: tables directory picker
+    save.rs           # Orchestrates writing wizard state to VPinballX.ini
+    autostart.rs      # ~/.config/autostart/pinready.desktop toggle
 ```
+
+Note: `app.rs` was split into the `app/` module in commit `9763b07` (was 3589 lines).
 
 ---
 
@@ -140,9 +172,9 @@ Mapping.RightNudge = Key;56
 **SDL3 event loop** runs on a **dedicated thread**, communicates via `crossbeam-channel`.
 
 **At startup**, detect connected devices via SDL3 joystick/gamepad API.
-- If dedicated pinball controller detected (Pinscape KL25Z, Pinscape Pico, DudesCab) → VPX auto-manages plunger axes and accelerometer nudge. PinReady does NOT map PlungerPos/PlungerVel/NudgeX/NudgeY — those are handled by VPX directly.
-- Detection: name contains "Pinscape" or ID contains "PSC" → Pinscape; name contains "DudesCab" → DudesCab.
-- Three controller profiles with default button mappings, selectable in the wizard:
+- If dedicated pinball controller detected (Pinscape KL25Z, Pinscape Pico, DudesCab, PinOne) → VPX auto-manages plunger axes and accelerometer nudge. PinReady does NOT map PlungerPos/PlungerVel/NudgeX/NudgeY — those are handled by VPX directly.
+- Detection: name contains "Pinscape" or ID contains "PSC" → Pinscape; name contains "DudesCab" → DudesCab; name contains "PinOne" or ID contains "CSD" → PinOne.
+- **Four controller profiles** with default button mappings, selectable in the wizard (KL25Z, Pico, DudesCab, PinOne). The ecosystem is well-covered — all mainstream VP-dedicated HID boards are here. LedWiz/PacLed are output-only and out of scope.
 
 **Profile 0 — KL25Z (KL Shield V5.1 / Brain / Rig Master)**
 Verified via jstest on physical hardware (Arnoz default firmware config).
@@ -227,6 +259,9 @@ From official DudesCab mapping table. Buttons numbered from 1 in docs, SDL from 
 | 24 | NightMode | *(DO NOT REMAP)* |
 | 25–30 | Spare 1–6 | *(User-defined)* |
 | 31 | Calib | *(DO NOT REMAP)* |
+
+**Profile 3 — PinOne (Cleveland Software Design)**
+Detected by name containing "PinOne" or ID prefix `CSD`. Nudge axes use Acceleration type (not Position) — the board exposes raw accelerometer data, not pre-integrated position.
 
 - Keyboard and joypad can coexist.
 
@@ -470,7 +505,57 @@ Per-table ini overrides global.
 
 Do not hardcode section names or key names — the ini format evolves.
 **Read the actual ini file at startup** to discover available keys and sections dynamically.
+
+**Never touch `Plugin.PinMAME.*`** — PinReady must never disable PinMAME audio (or any PinMAME setting). Only settings PinReady writes:
+- `[Player]` — PlayfieldDisplay/Width/Height, BGSet, NudgeStrength, MusicVolume, SoundVolume, rendering options
+- `[Backglass]` / `[ScoreView]` / `[Topper]` — Output, Display, Width, Height
+- `[Input]` — Device.* + Mapping.*
+- `[Plugin.B2SLegacy]` — backglass overlay flags (B2SHideGrill, ScoreViewDMDOverlay, etc.) only when no DMD screen is present
 Only write back keys that already exist in the file, or that are explicitly documented by VPX.
+
+---
+
+## Cabinet / kiosk mode (v0.6.0)
+
+When VPX config has `BGSet = 1` (Cabinet) **and** the wizard is already completed, PinReady launches in kiosk mode:
+
+- **Main PF viewport**: created via `ViewportBuilder::with_monitor(idx)` + `with_rotation(CW90)` + `with_decorations(false)`. Winit opens it in borderless fullscreen directly on the Playfield monitor — no position loop needed, no WM races. Rotation is CW90 because pincab playfields are physically laid flat but the hardware monitor reports landscape.
+- **Secondary viewports** (BG / DMD / Topper): created via `show_viewport_deferred` with `with_monitor(idx)`, `with_rotation(None)`, and `with_active(false)` so they don't steal keyboard focus from the PF. They show:
+  - BG → backglass image (from `.directb2s` extraction via `directb2s` crate)
+  - DMD + Topper → grey cover with tinted VPX logo
+- **Kiosk cursor loop** (in `App::ui`, gated on `kiosk_cursor && !vpx_running`):
+  - `set_software_cursor_scale(3.0)` — big cursor on large 4K playfields
+  - `set_cursor_lock(true)` — confines the virtual cursor to the PF window
+  - `ViewportCommand::Focus` every frame when unfocused — reclaims focus from any secondary that steals it despite `with_active(false)` (Mutter sometimes does)
+  - One-shot `CursorPosition(center)` warp when `inner_rect` first becomes available
+
+### Monitor index must match winit's enumeration
+
+`with_monitor(idx)` uses the index into winit's `available_monitors()`, which is the OS-native enumeration order. `screens.rs` keeps `self.displays` in SDL3 enumeration order (same native ordering) and **does not** reorder by pixel count — role assignment is done via a parallel sort of indices. Changing this invariant breaks BG/DMD placement.
+
+### VPX launch lifecycle
+
+When the user selects a table:
+1. `launch_table` spawns `VPinballX_BGFX -play <vpx>` as a subprocess.
+2. `vpx_running` flips to `true`. Stdout is read in a helper thread and parsed for `SetProgress <pct>%`, `Startup done`, `PluginLog`, etc. Messages stream into the launcher's loading overlay.
+3. On `Startup done`:
+   - `vpx_hide_covers = true` → secondary cover viewports stop rendering, so VPX's own BG/DMD windows become visible
+   - `ctx.set_cursor_lock(false)` → release the cursor so VPX can read the mouse
+   - Kiosk focus-reclaim stops (gated on `!vpx_running`). VPX windows naturally z-order above PinReady
+4. On VPX exit (`ExitOk` / `ExitError` / `LaunchError`):
+   - `vpx_running = false` → kiosk loop resumes, reclaiming focus + re-warping the cursor
+   - `vpx_hide_covers = false` → secondary covers render again
+   - `kiosk_cursor_warped = false` → triggers a fresh warp + focus on next frame
+
+No `Minimized(true)` on the PF. Attempted once; Mutter does not reliably restore borderless-fullscreen windows with `Minimized(false)`.
+
+### Why a forked egui?
+
+The fork (`Le-Syl21/egui`, branch `viewport-rotation-cursor-lock`) exists because kiosk/cabinet mode needs features not in upstream. Features proposed upstream:
+- PR [emilk/egui#8113](https://github.com/emilk/egui/pull/8113) — viewport rotation + software cursor + `tessellate_for_viewport` fix (fixes root rotation leaking into child viewports)
+- PR [emilk/egui#8117](https://github.com/emilk/egui/pull/8117) — `ViewportBuilder::with_monitor(index)` + `ViewportCommand::SetMonitor(index)`
+
+`cursor_lock` stays fork-only for now (kiosk-specific; follow-up after #8113 merges).
 
 ---
 
@@ -492,13 +577,15 @@ Use `crossbeam_channel::unbounded()` for communication.
 ## Key conventions
 
 - **Cross-platform only** — no Win32, no xrandr, no platform-specific APIs. SDL3 for everything.
-- **No system dependencies** — use bundled features for SDL3 and SQLite
-- **Subprocess for VPX only** — use `std::process::Command` to launch tables, no FFI linking, no external tools required
+- **No system dependencies at runtime** — use bundled features for SDL3 and SQLite. Zero external tools in PATH (ever).
+- **Subprocess for VPX only** — use `std::process::Command` to launch tables, no FFI linking
 - **Unsafe SDL3 calls** — wrap in safe Rust functions in `screens.rs` and `inputs.rs`, never expose raw pointers to other modules
 - **Error handling** — use `anyhow` or explicit `Result` types, no `unwrap()` in production paths
-- **Config writes are atomic** — read full ini → modify → write back, never partial writes
+- **Config writes preserve comments** — via `ini-preserve` crate, read full ini → modify → write back
 - **SQLite catalog** — initialize schema on first run, upsert on rescan
-- **First run detection** — uninitialized SQLite database triggers wizard mode
+- **First run detection** — `wizard_completed` flag in SQLite DB (not ini existence, not filesystem heuristics). `--config` CLI flag forces wizard re-entry
+- **Display enumeration order must match winit** — `screens.rs` does not reorder `self.displays` after enumeration; roles are assigned via parallel index sort. `ViewportBuilder::with_monitor(idx)` depends on this invariant
+- **Translation keys** — most `t!()` calls use string literals (static grep catches those). `input_*` action labels are looked up dynamically via `t!(action.label)` where `label` is a string field in `inputs.rs`. When auditing "dead" keys, a grep-only audit will miss these — verify via runtime usage before deleting
 
 ---
 

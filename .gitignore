@@ -31,3 +31,14 @@ PinscapePico/
 Pinscape_Controller/
 VPinballX.ini
 Capture*
+
+# Runtime logs (rotated at startup)
+PinReady.log
+PinReady.log.*
+
+# Claude Code harness state
+.claude/
+
+# Session working notes (not committed)
+egui_rotation_CLAUDE.md
+

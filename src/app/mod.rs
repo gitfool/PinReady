@@ -189,6 +189,12 @@ pub struct App {
     scroll_to_selected: bool, // set by joystick navigation to trigger scroll
     launcher_cols: usize,     // number of columns in the grid (computed in render)
     images_preloaded: bool,
+    // Kiosk mode: lock the cursor inside the PF window and center it on the grid.
+    // Window placement itself is handled at creation via ViewportBuilder::with_monitor.
+    kiosk_cursor: bool,         // scale + lock the cursor, warp once window is mapped
+    kiosk_cursor_warped: bool,  // one-shot: warp cursor after window settles
+    // Launcher joystick nav auto-repeat: track which nav button is held
+    nav_held: Option<(u8, String, std::time::Instant, std::time::Instant)>,
     bg_rx: Option<crossbeam_channel::Receiver<(usize, std::path::PathBuf)>>,
 
     // VPX process running — disables launcher while true
@@ -227,8 +233,12 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: VpxConfig, db: Database, start_in_wizard: bool) -> Self {
-        let displays = screens::enumerate_displays();
+    pub fn new(
+        config: VpxConfig,
+        db: Database,
+        start_in_wizard: bool,
+        displays: Vec<DisplayInfo>,
+    ) -> Self {
         let screen_count = displays.len().min(4);
         let view_mode = if screen_count >= 2 { 1 } else { 0 };
         let disable_touch = config
@@ -321,6 +331,9 @@ impl App {
             scroll_to_selected: false,
             launcher_cols: 1,
             images_preloaded: false,
+            kiosk_cursor: false,
+            kiosk_cursor_warped: false,
+            nav_held: None,
             bg_rx: None,
             vpx_running: Arc::new(AtomicBool::new(false)),
             vpx_status_rx: None,
@@ -366,6 +379,14 @@ impl App {
             player_z,
             player_height,
         )
+    }
+
+    /// Enable kiosk cursor behavior: software-scaled cursor, locked inside the
+    /// window, and warped to center once the window is mapped. Window placement
+    /// is handled separately via `ViewportBuilder::with_monitor`.
+    pub fn enable_kiosk_cursor(&mut self) {
+        self.kiosk_cursor = true;
+        self.kiosk_cursor_warped = false;
     }
 
     fn load_rendering_config(config: &VpxConfig) -> (f32, i32, i32, i32, i32, i32, i32, f32) {
@@ -586,6 +607,7 @@ impl App {
                         self.capture_state = CaptureState::Idle;
                     }
                 }
+                JoystickEvent::ButtonUp { .. } => {}
                 JoystickEvent::AxisMotion { .. } => {}
                 JoystickEvent::PinscapeDetected { vpx_id } => {
                     self.apply_pinscape_defaults(vpx_id);
@@ -643,6 +665,36 @@ use autostart::{is_autostart_enabled, set_autostart};
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Kiosk cursor: scale + lock + one-shot warp + persistent focus.
+        // We reclaim focus every frame when the PF is unfocused, because
+        // secondary viewports (BG/DMD/Topper) can steal it on some WMs
+        // despite with_active(false) at creation time.
+        //
+        // DISABLED while VPX is running: we must release the cursor and stop
+        // fighting for focus so VPX can take over keyboard/mouse input.
+        let vpx_running = self.vpx_running.load(Ordering::Relaxed);
+        if self.kiosk_cursor && !vpx_running {
+            let ctx = ui.ctx();
+            ctx.set_software_cursor_scale(3.0);
+            ctx.set_cursor_lock(true);
+            let focused = ctx.input(|i| i.viewport().focused).unwrap_or(false);
+            if !focused {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                ctx.request_repaint();
+            }
+            if !self.kiosk_cursor_warped {
+                if let Some(inner) = ctx.input(|i| i.viewport().inner_rect) {
+                    let size = inner.size();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(egui::pos2(
+                        size.x / 2.0,
+                        size.y / 2.0,
+                    )));
+                    self.kiosk_cursor_warped = true;
+                }
+                ctx.request_repaint();
+            }
+        }
+
         // Check quit timer (after knocker plays)
         if let Some(start) = self.quit_after_ms {
             if start.elapsed().as_millis() > 800 {
@@ -661,6 +713,21 @@ impl eframe::App for App {
         self.process_wizard_joystick_events();
 
         // === Wizard mode ===
+
+        // Scale wizard UI x2 via Style (fonts + spacing). The initial window
+        // size is set to accommodate this scaled content in main.rs.
+        const WIZARD_SCALE: f32 = 2.0;
+        ui.style_mut().text_styles.values_mut().for_each(|font_id| {
+            font_id.size *= WIZARD_SCALE;
+        });
+        let spacing = &mut ui.style_mut().spacing;
+        spacing.button_padding *= WIZARD_SCALE;
+        spacing.interact_size *= WIZARD_SCALE;
+        spacing.item_spacing *= WIZARD_SCALE;
+        spacing.indent *= WIZARD_SCALE;
+        // Push the scrollbar flush to the window edge — default bar_outer_margin
+        // leaves a small gap on the right that looks awkward on this layout.
+        spacing.scroll.bar_outer_margin = 0.0;
 
         // Header
         egui::Panel::top("wizard_header").show_inside(ui, |ui| {
@@ -741,19 +808,24 @@ impl eframe::App for App {
             ui.add_space(4.0);
         });
 
-        // Main content — no inner margin so scrollbar sticks to window edge
+        // Main content — zero right/bottom inner+outer margins and no stroke
+        // so the scrollbar sits flush against the window edge.
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::central_panel(ui.style()).inner_margin(egui::Margin {
-                    left: 8,
-                    right: 0,
-                    top: 8,
-                    bottom: 8,
-                }),
+                egui::Frame::central_panel(ui.style())
+                    .inner_margin(egui::Margin {
+                        left: 8,
+                        right: 0,
+                        top: 8,
+                        bottom: 0,
+                    })
+                    .outer_margin(egui::Margin::ZERO)
+                    .stroke(egui::Stroke::NONE),
             )
             .show_inside(ui, |ui| {
                 egui::ScrollArea::vertical()
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                    .auto_shrink([false, false])
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                     .show(ui, |ui| {
                         ui.add_space(0.0); // ensure full width
                         let _ = ui.available_width(); // force layout to use full width
@@ -772,5 +844,6 @@ impl eframe::App for App {
                         }
                     });
             });
+
     }
 }

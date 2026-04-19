@@ -153,11 +153,20 @@ pub fn enumerate_displays() -> Vec<DisplayInfo> {
         // Do NOT call SDL_QuitSubSystem here — other subsystems (audio, joystick) need SDL alive
     }
 
-    // Sort by total pixel count descending for auto-assignment
-    displays.sort_by(|a, b| b.total_pixels.cmp(&a.total_pixels));
-
-    // Auto-assign roles by size
-    auto_assign_roles(&mut displays);
+    // Auto-assign roles by pixel count WITHOUT reordering the list: the index
+    // in `displays` must match winit's `available_monitors()` order so that
+    // `ViewportBuilder::with_monitor(idx)` targets the correct screen.
+    let mut sorted_indices: Vec<usize> = (0..displays.len()).collect();
+    sorted_indices.sort_by_key(|&i| std::cmp::Reverse(displays[i].total_pixels));
+    let roles = [
+        DisplayRole::Playfield,
+        DisplayRole::Backglass,
+        DisplayRole::Dmd,
+        DisplayRole::Topper,
+    ];
+    for (rank, &idx) in sorted_indices.iter().enumerate() {
+        displays[idx].role = roles.get(rank).copied().unwrap_or(DisplayRole::Unused);
+    }
 
     for d in &displays {
         log::info!(
@@ -174,8 +183,10 @@ pub fn enumerate_displays() -> Vec<DisplayInfo> {
     displays
 }
 
-/// Assign roles heuristically based on total pixel count (descending order).
-/// Largest → Playfield, 2nd → Backglass, 3rd → DMD, 4th → Topper
+/// Assign roles positionally: first entry → Playfield, etc. Assumes the slice
+/// is already sorted by desired priority. Kept for tests; production code in
+/// `enumerate_displays` assigns roles without reordering the list.
+#[cfg(test)]
 pub(crate) fn auto_assign_roles(displays: &mut [DisplayInfo]) {
     let roles = [
         DisplayRole::Playfield,
