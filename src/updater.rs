@@ -4,8 +4,10 @@
 
 use anyhow::{bail, Context, Result};
 use crossbeam_channel::Sender;
+use regex::Regex;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 /// Default GitHub repository for Visual Pinball releases.
 pub const DEFAULT_FORK_REPO: &str = "Le-Syl21/vpinball";
@@ -17,6 +19,106 @@ pub struct ReleaseInfo {
     pub asset_name: String,
     pub asset_url: String,
     pub asset_size: u64,
+}
+
+/// Parse VPX `--version` output into a version string mirroring the release artifact tag format.
+///
+/// Input:  `Starting VPX - v10.8.1 Beta (Rev. 4955 (da4e2db), macos BGFX 64bits)`
+/// Output: `v10.8.1-4955-da4e2db`
+///
+/// Falls back to just the version number if the revision or SHA cannot be found.
+#[cfg(any(test, not(target_os = "windows")))]
+fn parse_vpx_version_output(s: &str) -> Option<String> {
+    static VPX_VERSION_RE: OnceLock<Regex> = OnceLock::new();
+    let re = VPX_VERSION_RE.get_or_init(|| {
+        Regex::new(r"(?x)\b(?P<ver>v\d+\.\d+\.\d+)\b(?:.*?\bRev\.\s*(?P<rev>\d+)\s*\((?P<sha>[0-9A-Fa-f]{7})\))?")
+        .expect("valid VPX version regex")
+    });
+
+    let caps = re.captures(s)?;
+    let base = caps.name("ver")?.as_str();
+
+    match (caps.name("rev"), caps.name("sha")) {
+        (Some(rev), Some(sha)) => Some(format!("{}-{}-{}", base, rev.as_str(), sha.as_str())),
+        _ => Some(base.to_string()),
+    }
+}
+
+#[cfg(any(test, target_os = "windows"))]
+fn parse_vpx_product_version(s: &str) -> Option<String> {
+    let cleaned = s.trim_matches('\0').trim();
+    if cleaned.is_empty() {
+        return None;
+    }
+
+    static PRODUCT_VERSION_RE: OnceLock<Regex> = OnceLock::new();
+    let re = PRODUCT_VERSION_RE.get_or_init(|| {
+        Regex::new(r"^(?P<base>\d+\.\d+\.\d+)\.(?P<rev>\d+)\.(?P<sha>[0-9a-fA-F]+)$")
+            .expect("valid product version regex")
+    });
+
+    let caps = re.captures(cleaned)?;
+    let base = caps.name("base")?.as_str();
+    let rev = caps.name("rev")?.as_str();
+    let sha = caps.name("sha")?.as_str().to_ascii_lowercase();
+    Some(format!("v{base}-{rev}-{sha}"))
+}
+
+#[cfg(target_os = "windows")]
+fn query_windows_file_version(exe_path: &Path) -> Option<String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr;
+    use winapi::shared::minwindef::{DWORD, LPVOID, UINT};
+    use winapi::um::winver::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW};
+
+    fn query_string_value(buffer: &[u8], sub_block: &str) -> Option<String> {
+        let mut value_ptr: LPVOID = ptr::null_mut();
+        let mut value_len: UINT = 0;
+        let sub_block_wide: Vec<u16> = sub_block.encode_utf16().chain(Some(0)).collect();
+
+        let queried = unsafe {
+            VerQueryValueW(
+                buffer.as_ptr() as *const _,
+                sub_block_wide.as_ptr(),
+                &mut value_ptr,
+                &mut value_len,
+            )
+        };
+        if queried == 0 || value_ptr.is_null() || value_len == 0 {
+            return None;
+        }
+
+        let raw =
+            unsafe { std::slice::from_raw_parts(value_ptr as *const u16, value_len as usize) };
+        let text = String::from_utf16_lossy(raw);
+        Some(text.trim_matches('\0').trim().to_string())
+    }
+
+    let wide_path: Vec<u16> = OsStr::new(exe_path).encode_wide().chain(Some(0)).collect();
+
+    let mut handle: DWORD = 0;
+    let info_size = unsafe { GetFileVersionInfoSizeW(wide_path.as_ptr(), &mut handle) };
+    if info_size == 0 {
+        return None;
+    }
+
+    let mut buffer = vec![0u8; info_size as usize];
+    let got_info = unsafe {
+        GetFileVersionInfoW(
+            wide_path.as_ptr(),
+            0,
+            info_size,
+            buffer.as_mut_ptr() as LPVOID,
+        )
+    };
+    if got_info == 0 {
+        return None;
+    }
+
+    // Keep lookup deterministic and simple: use the English string table.
+    query_string_value(&buffer, "\\StringFileInfo\\040904B0\\ProductVersion")
+        .and_then(|product| parse_vpx_product_version(&product))
 }
 
 /// Progress updates sent during download/install.
@@ -85,6 +187,9 @@ fn detect_arm_board() -> &'static str {
         // Generic ARM Linux — try RPi as default
         "rpi-linux-aarch64"
     } else if cfg!(target_os = "macos") {
+        // The VPX fork ships macOS ARM builds as `macos-arm64-Release.dmg`,
+        // not `macos-aarch64`. Keep the matching name here even though the
+        // PinReady CI itself standardized to `aarch64` for Homebrew.
         "arm64"
     } else {
         "aarch64"
@@ -354,6 +459,73 @@ fn extract_zip(archive_path: &Path, dest: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Query the version from a manually installed VPX executable.
+///
+/// On Windows, reads ProductVersion from the executable version resource
+/// (without launching the GUI executable).
+/// On other platforms, runs `--version` and parses output like:
+/// `Starting VPX - v10.8.1 Beta (Rev. 4955 (da4e2db), macos BGFX 64bits)`.
+pub fn query_vpx_version(exe_path: &str) -> Option<String> {
+    let exe_path = resolve_vpx_exe(Path::new(exe_path));
+
+    #[cfg(target_os = "windows")]
+    {
+        query_windows_file_version(&exe_path)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        use std::process::Command;
+
+        let output = Command::new(&exe_path).arg("--version").output().ok()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let combined = format!("{}{}", stdout, stderr);
+        parse_vpx_version_output(&combined)
+    }
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn full_vpx_output_produces_artifact_tag_format() {
+        assert_eq!(
+            parse_vpx_version_output(
+                "Starting VPX - v10.8.1 Beta (Rev. 4955 (da4e2db), macos BGFX 64bits)"
+            ),
+            Some("v10.8.1-4955-da4e2db".to_string())
+        );
+    }
+
+    #[test]
+    fn version_only_fallback_when_no_rev_sha() {
+        assert_eq!(
+            parse_vpx_version_output("v10.8.1"),
+            Some("v10.8.1".to_string())
+        );
+    }
+
+    #[test]
+    fn returns_none_for_unparseable_output() {
+        assert_eq!(parse_vpx_version_output("invalid"), None);
+        assert_eq!(parse_vpx_version_output("4955"), None);
+    }
+
+    #[test]
+    fn product_version_dot_format_is_normalized() {
+        assert_eq!(
+            parse_vpx_product_version("10.8.1.4957.db2a00"),
+            Some("v10.8.1-4957-db2a00".to_string())
+        );
+        assert_eq!(
+            parse_vpx_product_version("Visual Pinball BGFX 10.8.1"),
+            None
+        );
+    }
 }
 
 #[cfg(test)]

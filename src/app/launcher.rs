@@ -25,6 +25,7 @@ impl App {
         self.save_tilt();
         self.save_audio();
         self.save_tables_dir();
+        self.flush_config();
 
         if let Err(e) = self.db.set_configured() {
             log::error!("Failed to mark wizard complete: {e}");
@@ -599,8 +600,18 @@ impl App {
                             release.tag,
                             self.vpx_installed_tag
                         );
-                        if release.tag != self.vpx_installed_tag {
+
+                        // Never offer auto-updates for manually installed VPX.
+                        // Users managing manual installs are responsible for updates.
+                        if self.vpx_install_mode == VpxInstallMode::Manual {
+                            log::info!(
+                                "Skipping update prompt: VPX was manually installed (not auto-downloaded)"
+                            );
+                            self.vpx_latest_release = None;
+                        } else if release.tag != self.vpx_installed_tag {
                             self.vpx_latest_release = Some(release);
+                        } else {
+                            self.vpx_latest_release = None;
                         }
                     }
                     Err(e) => {

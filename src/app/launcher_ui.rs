@@ -22,11 +22,9 @@ impl App {
         }
 
         // Keyboard + mouse wheel nav — same actions as joystick for a single
-        // source of truth. Arrows = flipper/magna, wheel = flipper, Enter = launch, Escape = quit.
+        // source of truth. Arrows = flipper/magna, Enter = launch, Escape = quit.
         enum NavInput {
             Key(egui::Key),
-            WheelUp,
-            WheelDown,
         }
         if !self.tables.is_empty() && !self.vpx_running.load(Ordering::Relaxed) {
             let inputs: Vec<NavInput> = ui.input(|i| {
@@ -36,16 +34,11 @@ impl App {
                         egui::Event::Key {
                             key, pressed: true, ..
                         } => Some(NavInput::Key(*key)),
-                        egui::Event::MouseWheel { delta, .. } if delta.y > 0.0 => {
-                            Some(NavInput::WheelUp)
-                        }
-                        egui::Event::MouseWheel { delta, .. } if delta.y < 0.0 => {
-                            Some(NavInput::WheelDown)
-                        }
                         _ => None,
                     })
                     .collect()
             });
+
             for input in inputs {
                 match input {
                     NavInput::Key(egui::Key::ArrowLeft) => {
@@ -54,10 +47,10 @@ impl App {
                     NavInput::Key(egui::Key::ArrowRight) => {
                         self.apply_nav_action("RightFlipper");
                     }
-                    NavInput::Key(egui::Key::ArrowUp) | NavInput::WheelUp => {
+                    NavInput::Key(egui::Key::ArrowUp) => {
                         self.apply_nav_action("LeftMagna");
                     }
-                    NavInput::Key(egui::Key::ArrowDown) | NavInput::WheelDown => {
+                    NavInput::Key(egui::Key::ArrowDown) => {
                         self.apply_nav_action("RightMagna");
                     }
                     NavInput::Key(egui::Key::Enter) => {
@@ -306,8 +299,60 @@ impl App {
         self.launcher_cols = cols;
         let row_height = card_height + card_spacing;
 
+        // Extra keyboard navigation for long lists.
+        // Home/End jump to first/last table. PageUp/PageDown jump by one
+        // viewport worth of rows, keeping alignment consistent with joystick nav.
+        if !self.vpx_running.load(Ordering::Relaxed) {
+            let home = ui.input(|i| i.key_pressed(egui::Key::Home));
+            let end = ui.input(|i| i.key_pressed(egui::Key::End));
+            let page_up = ui.input(|i| i.key_pressed(egui::Key::PageUp));
+            let page_down = ui.input(|i| i.key_pressed(egui::Key::PageDown));
+
+            if home {
+                self.selected_table = 0;
+                self.scroll_to_selected = true;
+            }
+            if end {
+                self.selected_table = self.tables.len().saturating_sub(1);
+                self.scroll_to_selected = true;
+            }
+
+            if page_up || page_down {
+                let visible_rows = (ui.available_height() / row_height).floor().max(1.0) as usize;
+                let page_size = visible_rows.saturating_mul(cols).max(1);
+                if page_up {
+                    self.selected_table = self.selected_table.saturating_sub(page_size);
+                }
+                if page_down {
+                    self.selected_table = self
+                        .selected_table
+                        .saturating_add(page_size)
+                        .min(self.tables.len().saturating_sub(1));
+                }
+                self.scroll_to_selected = true;
+            }
+        }
+
+        // Boost line-based mouse wheel input so stronger wheel flicks scroll farther.
+        // Keep trackpad behavior untouched (trackpads usually report point deltas).
+        let line_wheel_strength: f32 = ui.input(|i| {
+            i.events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Line,
+                        delta,
+                        ..
+                    } => Some(delta.y.abs()),
+                    _ => None,
+                })
+                .sum()
+        });
+        let wheel_boost = (1.0 + line_wheel_strength * 1.25).clamp(1.0, 8.0);
+
         let mut scroll_area = egui::ScrollArea::vertical()
-            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            .wheel_scroll_multiplier(egui::vec2(1.0, wheel_boost));
 
         // Auto-scroll to selected table when navigating with joystick.
         // Keep the selected row centered in the viewport; clamp at start/end so

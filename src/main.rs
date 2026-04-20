@@ -59,7 +59,12 @@ fn init_logging() {
     // land in the log file. RUST_LOG env var still overrides if set.
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format(move |buf, record| {
-            let ts = buf.timestamp_seconds();
+            let ts = time::OffsetDateTime::now_local()
+                .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
+                .format(&time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second]"
+                ))
+                .unwrap();
             let line = format!(
                 "[{ts} {level} {target}] {msg}\n",
                 level = record.level(),
@@ -80,9 +85,42 @@ fn init_logging() {
     eprintln!("Log file: {}", log_path.display());
 }
 
+/// On Windows release builds the process is a GUI subsystem app (no console).
+/// Attach to the parent terminal's console before printing CLI output so that
+/// `println!` is visible. Must be called before the first write to stdout.
+#[cfg(all(target_os = "windows", not(debug_assertions)))]
+fn attach_windows_console() {
+    extern "system" {
+        fn AttachConsole(dwProcessId: u32) -> i32;
+        fn AllocConsole() -> i32;
+    }
+    const ATTACH_PARENT_PROCESS: u32 = 0xFFFF_FFFF;
+    // SAFETY: Win32 console API; no invariants to uphold beyond calling convention.
+    unsafe {
+        if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+            // Not launched from a console (e.g. double-click) — open a new one.
+            AllocConsole();
+        }
+    }
+}
+
 fn main() -> Result<()> {
     // Parse arguments
     let args: Vec<String> = std::env::args().collect();
+
+    // On Windows release builds stdout is detached from the terminal.
+    // Attach to the parent console before the first println! so Rust's lazy
+    // stdout initialisation picks up the valid handle.
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
+    {
+        let is_cli = args
+            .iter()
+            .any(|a| matches!(a.as_str(), "--version" | "-v" | "--help" | "-h"));
+        if is_cli {
+            attach_windows_console();
+        }
+    }
+
     if args.iter().any(|a| a == "--version" || a == "-v") {
         println!("PinReady v{VERSION}");
         println!("License: GPLv3+ — https://www.gnu.org/licenses/gpl-3.0.html");

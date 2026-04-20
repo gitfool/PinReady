@@ -62,6 +62,7 @@ crossbeam-channel = "0.5"
 # Logging
 log = "0.4"
 env_logger = "0.11"
+time = { version = "0.3", features = ["local-offset", "formatting", "macros"] }
 
 # Internationalization
 rust-i18n = "4"
@@ -69,11 +70,18 @@ rust-i18n = "4"
 # Fonts for non-Latin scripts (Arabic, CJK, Devanagari, Thai, etc.)
 noto-fonts-dl = { version = "0.1.2", features = ["ar", "hi", "bn", "zh", "zh_tw", "ja", "ko", "th", "ur"] }
 
+# Platform directories (data, config, home)
+dirs = "6"
+
 # Error handling
 anyhow = "1"
+regex = "1"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = { version = "0.1", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winver", "winnt"] }
 
 [dev-dependencies]
 tempfile = "3"

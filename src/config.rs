@@ -2,9 +2,16 @@ use anyhow::{Context, Result};
 use ini_preserve::Ini;
 use std::path::{Path, PathBuf};
 
-fn default_ini_path() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".local/share/VPinballX/10.8/VPinballX.ini")
+/// Default VPinballX.ini location, following OS conventions:
+/// - Linux:   ~/.local/share/VPinballX/10.8/VPinballX.ini
+/// - macOS:   ~/Library/Application Support/VPinballX/10.8/VPinballX.ini
+/// - Windows: %APPDATA%\VPinballX\10.8\VPinballX.ini
+pub fn default_ini_path() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("VPinballX")
+        .join("10.8")
+        .join("VPinballX.ini")
 }
 
 pub struct VpxConfig {
@@ -32,16 +39,35 @@ impl VpxConfig {
                 format!("Failed to create config directory: {}", parent.display())
             })?;
         }
+        // If self.path is a symlink, resolve to the real target so that
+        // ini-preserve's atomic rename doesn't clobber the symlink itself.
+        let write_path = if self.path.is_symlink() {
+            let target = std::fs::read_link(&self.path).with_context(|| {
+                format!("Failed to read symlink target: {}", self.path.display())
+            })?;
+            if target.is_absolute() {
+                target
+            } else {
+                self.path
+                    .parent()
+                    .unwrap_or(std::path::Path::new("."))
+                    .join(target)
+            }
+        } else {
+            self.path.clone()
+        };
+
         let content = self.ini.to_string();
         let line_count = content.split('\n').count();
         log::info!(
-            "Saving ini: {} bytes, {} lines to {}",
+            "Saving ini: {} bytes, {} lines to {}{}",
             content.len(),
             line_count,
-            self.path.display()
+            self.path.display(),
+            if self.path.is_symlink() { "@" } else { "" }
         );
         self.ini
-            .save(&self.path)
+            .save(&write_path)
             .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
