@@ -3,6 +3,33 @@ use super::*;
 impl App {
     pub(super) fn render_audio_page(&mut self, ui: &mut egui::Ui) {
         ui.heading(t!("audio_heading"));
+        ui.add_space(4.0);
+
+        // 3-jack repurposing tip — shown for all modes (stereo users may
+        // want to upgrade). OS-specific tool name + link to a README
+        // with details + screenshots.
+        #[cfg(target_os = "linux")]
+        let (tool, url) = (
+            "hdajackretask",
+            "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_linux",
+        );
+        #[cfg(target_os = "windows")]
+        let (tool, url) = (
+            "Realtek HD Audio Manager",
+            "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_windows",
+        );
+        #[cfg(target_os = "macos")]
+        let (tool, url) = (
+            "Audio MIDI Setup",
+            "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_mac",
+        );
+        ui.horizontal_wrapped(|ui| {
+            ui.colored_label(
+                egui::Color32::from_rgb(200, 180, 100),
+                t!("audio_3jack_tip", tool = tool),
+            );
+            ui.hyperlink_to(t!("audio_3jack_tip_more_info"), url);
+        });
         ui.add_space(8.0);
 
         // Device assignment
@@ -121,30 +148,6 @@ impl App {
                     });
                 ui.add_space(4.0);
                 ui.label(t!("audio_wiring_note"));
-
-                // 3-jack repurposing tip — OS-specific tool name + link to
-                // a dedicated README (details + screenshots).
-                #[cfg(target_os = "linux")]
-                let (tool, url) = (
-                    "hdajackretask",
-                    "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_linux",
-                );
-                #[cfg(target_os = "windows")]
-                let (tool, url) = (
-                    "Realtek HD Audio Manager",
-                    "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_windows",
-                );
-                #[cfg(target_os = "macos")]
-                let (tool, url) = (
-                    "Audio MIDI Setup",
-                    "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_mac",
-                );
-
-                ui.add_space(8.0);
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(t!("audio_3jack_tip", tool = tool));
-                    ui.hyperlink_to(t!("audio_3jack_tip_more_info"), url);
-                });
             }
         }
 
