@@ -185,6 +185,10 @@ fn main() -> Result<()> {
     } else {
         None
     };
+    let primary_idx = displays.iter().position(|d| d.is_primary).unwrap_or(0);
+    let primary_size = displays
+        .get(primary_idx)
+        .map(|d| [d.width as f32, d.height as f32]);
 
     // Create app (starts joystick + audio threads internally)
     let mut app = app::App::new(vpx_config, db, start_in_wizard, displays);
@@ -193,7 +197,11 @@ fn main() -> Result<()> {
     // large enough to show all breadcrumbs + content comfortably.
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(format!("PinReady v{VERSION}"))
-        .with_inner_size([1800.0, 1100.0]);
+        .with_inner_size(primary_size.unwrap_or([1800.0, 1100.0]));
+    if !cabinet_mode {
+        // Borderless fullscreen on primary monitor gives an exact monitor fit.
+        viewport = viewport.with_decorations(false).with_monitor(primary_idx);
+    }
     if cabinet_mode {
         viewport = viewport
             .with_rotation(eframe::emath::ViewportRotation::CW90)
