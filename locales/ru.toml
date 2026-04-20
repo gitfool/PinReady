@@ -4,6 +4,7 @@
 page_screens = "Экраны"
 page_rendering = "Рендеринг"
 page_inputs = "Управление"
+page_outputs = "Выходы"
 page_tilt = "Tilt / Nudge"
 page_audio = "Звук"
 page_tables = "Столы"
@@ -194,6 +195,34 @@ input_custom2 = "Пользовательское #2 (мод стола)"
 input_custom3 = "Пользовательское #3 (мод стола)"
 input_custom4 = "Пользовательское #4 (мод стола)"
 
+# Outputs page
+outputs_heading = "Выходы / Конфигурация DOF"
+outputs_desc = "VPX 10.8.1 standalone интегрирует libdof нативно — не нужно устанавливать внешний плагин. Вам нужно лишь предоставить конфигурацию DOF, описывающую железо вашего кабинета (соленоиды, светодиоды, моторы...). Используйте онлайн-генератор VPUniverse для её создания, затем распакуйте результат в указанную ниже папку."
+outputs_workflow_title = "Как создать конфигурацию DOF"
+outputs_step1_account = "Создайте (бесплатный) аккаунт на VPUniverse ConfigTool."
+outputs_step2_table = "В инструменте создайте новый стол, соответствующий вашему кабинету."
+outputs_step3_output_system = "Добавьте в этот стол систему выходов (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Подключите устройства к выходам: соленоиды, флэшеры, подсветка GI, RGB-кнопки, светодиодные ленты WS2812, shaker, knocker, маячок…"
+outputs_step5_generate = "Нажмите Generate — инструмент создаст .zip с directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml и т. д."
+outputs_step6_extract = "Скачайте и распакуйте содержимое .zip прямо в целевую папку ниже (файлы идут в корень directoutputconfig/, а не в подпапку)."
+outputs_devices_intro = "Устройства, которые можно подключить (неполный список):"
+outputs_device_solenoids = "Соленоиды (флипперы, бамперы, слинги)"
+outputs_device_flashers = "Флэшеры"
+outputs_device_gi = "Подсветка GI"
+outputs_device_rgb_buttons = "RGB-кнопки"
+outputs_device_rgb_strips = "RGB-ленты WS2811/WS2812"
+outputs_device_shaker = "shaker (вибромотор)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Маячок / строб"
+outputs_device_gear = "Мотор / вентилятор"
+outputs_generator_title = "Онлайн-генератор"
+outputs_generator_desc = "Откроет VPUniverse ConfigTool в вашем браузере по умолчанию."
+outputs_open_generator = "Открыть VPUniverse ConfigTool"
+outputs_target_title = "Целевая папка на этой машине"
+outputs_target_desc = "Распакуйте .zip, созданный ConfigTool, в эту папку:"
+outputs_open_folder = "Открыть папку в файловом менеджере"
+outputs_folder_missing = "Папка ещё не существует — она будет создана при нажатии «Открыть»."
+
 # Tilt page
 tilt_heading = "Чувствительность Tilt / Nudge"
 tilt_desc = "Настройки чувствительности акселерометра (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Шар лево > право"
 audio_bottom_left = "Низ лево (SL)"
 audio_bottom_right = "Низ право (SR)"
 audio_wiring_note = "Примечание: цвета разъёмов могут различаться в зависимости от звуковой карты!"
+audio_3jack_tip = "Звуковая карта с 3 джеками (зелёный / розовый / синий)? Переназначьте их на 5.1 или 7.1 с помощью %{tool}."
+audio_3jack_tip_more_info = "подробнее"
 audio_wiring_col_output = "Выход jack"
 audio_wiring_col_channel = "Канал"
 audio_wiring_col_connection = "Подключение Pincab"
 audio_wiring_stereo_front = "Зелёный выход (Front) -> колонки Backglass (музыка)"
 audio_wiring_stereo_no_spatial = "Playfield: звук выводится на те же колонки, без пространственного разделения"
+audio_wiring_51_front_top = "Зелёный выход  (Front L/R) -> верхние эксайтеры playfield (сторона backglass)"
+audio_wiring_51_rear_bottom = "Чёрный выход   (Rear L/R)  -> нижние эксайтеры playfield (сторона lockbar/игрока)"
+audio_wiring_51_center_sub = "Оранжевый выход (Center/Sub) -> сабвуфер (опционально)"
+audio_wiring_51_bg_separate = "Backglass на отдельном аудио-устройстве"
+audio_wiring_51_front_bottom = "Зелёный выход  (Front L/R) -> нижние эксайтеры playfield (сторона lockbar/игрока)"
+audio_wiring_51_rear_top = "Чёрный выход   (Rear L/R)  -> верхние эксайтеры playfield (сторона backglass)"
+audio_wiring_71_green = "Зелёный (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Колонки Backglass (музыка) или система 2.1"
+audio_wiring_71_black = "Чёрный (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Верхние эксайтеры playfield (сторона backglass)"
+audio_wiring_71_grey = "Серый (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Нижние эксайтеры playfield (сторона lockbar/игрока)"
+audio_wiring_71_orange = "Оранжевый (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Сабвуфер / Bass shaker (опционально)"
 
 # Tables page
 tables_heading = "Каталог столов"
 tables_desc = "Выберите каталог с вашими столами VPX (одна папка на стол)."
 tables_structure = "Ожидаемая структура (папка на стол, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- файл стола (обязательно)
+    ├── Table Name.directb2s          <- backglass B2S (опционально)
+    ├── Table Name.ini                <- переопределения для стола (опционально)
+    ├── Table Name.vbs                <- патч VBS / override скрипта (опционально)
+    ├── altsound/<rom>/               <- пакет altsound (опционально)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- ROM PinMAME (обязательно для ROM-столов)
+    │   └── nvram/<rom>.nv            <- данные сохранения (создаётся автоматически)
+    ├── pupvideos/<rom>/              <- видео PinUp Player (опционально)
+    ├── serum/<rom>/<rom>.crz         <- раскраска DMD Serum (опционально)
+    ├── vni/<rom>/<rom>.vni + .pal    <- раскраска DMD VNI (опционально)
+    └── medias/                       <- медиа фронтенда (опционально)"""
+tables_formats_supported = "ℹ Поддерживаемые форматы раскраски DMD: Serum (.crz) и VNI (.vni + .pal)."
+tables_formats_unsupported = " => Проприетарные форматы вроде .pac не поддерживаются."
 tables_modifiable = "Все настройки можно изменить в игре клавишей F12."
+tables_tips_patch_desc = "Некоторым столам нужен VBS-патч для работы в 10.8.1 standalone."
+tables_tips_webp_desc = "Также можно конвертировать большие PNG/BMP-картинки в WebP, чтобы облегчить столы."
+tables_tips_info_here = "-> подробности здесь"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Путь:"
 tables_browse = "Обзор..."
 tables_folder_picker = "Выберите каталог столов"

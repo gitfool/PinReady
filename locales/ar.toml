@@ -4,6 +4,7 @@
 page_screens = "الشاشات"
 page_rendering = "العرض"
 page_inputs = "المدخلات"
+page_outputs = "المخرجات"
 page_tilt = "الميل / الدفع"
 page_audio = "الصوت"
 page_tables = "الطاولات"
@@ -194,6 +195,34 @@ input_custom2 = "مخصص #2 (مود الطاولة)"
 input_custom3 = "مخصص #3 (مود الطاولة)"
 input_custom4 = "مخصص #4 (مود الطاولة)"
 
+# Outputs page
+outputs_heading = "المخرجات / إعدادات DOF"
+outputs_desc = "يدمج VPX 10.8.1 standalone مكتبة libdof بشكل أصلي — بدون الحاجة لتثبيت إضافة خارجية. عليك فقط تقديم ملف إعدادات DOF يصف عتاد خزانتك (الملفات اللولبية، LEDs، المحركات...). استخدم المولد الإلكتروني VPUniverse لإنتاجه، ثم استخرج النتيجة في المجلد أدناه."
+outputs_workflow_title = "كيفية توليد إعدادات DOF"
+outputs_step1_account = "أنشئ حساباً (مجاناً) على VPUniverse ConfigTool."
+outputs_step2_table = "في الأداة، أنشئ طاولة جديدة تطابق خزانتك."
+outputs_step3_output_system = "أضف نظام مخرجات لهذه الطاولة (Pinscape، LedWiz، PinOne، DudesCab، PacLed، TeensyStripController…)."
+outputs_step4_devices = "اربط أجهزتك بالمخرجات: ملفات لولبية، flashers، إضاءة GI، أزرار RGB، شرائط LED WS2812، shaker، knocker، منارة…"
+outputs_step5_generate = "انقر على Generate — تُنتج الأداة ملف .zip يحتوي على directoutputconfig51.ini وDirectOutputShapes.xml وtablemappings.xml وغيرها."
+outputs_step6_extract = "حمّل واستخرج محتوى ملف .zip مباشرة في المجلد الهدف أدناه (الملفات توضع في جذر directoutputconfig/ وليس داخل مجلد فرعي)."
+outputs_devices_intro = "الأجهزة التي يمكن ربطها (قائمة غير حصرية):"
+outputs_device_solenoids = "ملفات لولبية (flippers، bumpers، slings)"
+outputs_device_flashers = "Flashers"
+outputs_device_gi = "إضاءة GI"
+outputs_device_rgb_buttons = "أزرار RGB"
+outputs_device_rgb_strips = "شرائط LED RGB WS2811/WS2812"
+outputs_device_shaker = "shaker (محرك اهتزاز)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "منارة / strobe"
+outputs_device_gear = "محرك / مروحة"
+outputs_generator_title = "المولد الإلكتروني"
+outputs_generator_desc = "يفتح VPUniverse ConfigTool في متصفحك الافتراضي."
+outputs_open_generator = "فتح VPUniverse ConfigTool"
+outputs_target_title = "المجلد الهدف على هذا الجهاز"
+outputs_target_desc = "استخرج ملف .zip المُولَّد بواسطة ConfigTool في هذا المجلد:"
+outputs_open_folder = "فتح المجلد في مدير الملفات"
+outputs_folder_missing = "المجلد غير موجود بعد — سيتم إنشاؤه عند النقر على فتح."
+
 # Tilt page
 tilt_heading = "حساسية الميل / الدفع"
 tilt_desc = "إعدادات الحساسية لمقياس التسارع (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "الكرة يسار > يمين"
 audio_bottom_left = "أسفل يسار (SL)"
 audio_bottom_right = "أسفل يمين (SR)"
 audio_wiring_note = "ملاحظة: قد تختلف ألوان مقابس jack حسب بطاقة الصوت!"
+audio_3jack_tip = "بطاقة صوت بثلاث مقابس (أخضر / وردي / أزرق)؟ أعد تعيينها إلى 5.1 أو 7.1 باستخدام %{tool}."
+audio_3jack_tip_more_info = "تفاصيل"
 audio_wiring_col_output = "مخرج Jack"
 audio_wiring_col_channel = "القناة"
 audio_wiring_col_connection = "توصيلة Pincab"
 audio_wiring_stereo_front = "الخرج الأخضر (الأمامي) -> سماعات Backglass (الموسيقى)"
 audio_wiring_stereo_no_spatial = "Playfield: الصوت يخرج من نفس السماعات، بدون تحديد مكاني"
+audio_wiring_51_front_top = "خرج أخضر  (Front L/R) -> مهتزات playfield العلوية (جهة backglass)"
+audio_wiring_51_rear_bottom = "خرج أسود  (Rear L/R)  -> مهتزات playfield السفلية (جهة lockbar/اللاعب)"
+audio_wiring_51_center_sub = "خرج برتقالي (Center/Sub) -> Subwoofer (اختياري)"
+audio_wiring_51_bg_separate = "Backglass على جهاز صوت منفصل"
+audio_wiring_51_front_bottom = "خرج أخضر  (Front L/R) -> مهتزات playfield السفلية (جهة lockbar/اللاعب)"
+audio_wiring_51_rear_top = "خرج أسود  (Rear L/R)  -> مهتزات playfield العلوية (جهة backglass)"
+audio_wiring_71_green = "أخضر (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "سماعات Backglass (الموسيقى) أو نظام 2.1"
+audio_wiring_71_black = "أسود (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "مهتزات playfield العلوية (جهة backglass)"
+audio_wiring_71_grey = "رمادي (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "مهتزات playfield السفلية (جهة lockbar/اللاعب)"
+audio_wiring_71_orange = "برتقالي (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (اختياري)"
 
 # Tables page
 tables_heading = "مجلد الطاولات"
 tables_desc = "اختر المجلد الذي يحتوي طاولات VPX (مجلد لكل طاولة)."
 tables_structure = "التنظيم المتوقع (مجلد لكل طاولة Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- ملف الطاولة (مطلوب)
+    ├── Table Name.directb2s          <- backglass B2S (اختياري)
+    ├── Table Name.ini                <- تجاوزات لكل طاولة (اختياري)
+    ├── Table Name.vbs                <- VBS patch / تجاوز السكربت (اختياري)
+    ├── altsound/<rom>/               <- حزمة altsound (اختياري)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (مطلوب لطاولات ROM)
+    │   └── nvram/<rom>.nv            <- بيانات الحفظ (تُنشأ تلقائياً)
+    ├── pupvideos/<rom>/              <- فيديوهات PinUp Player (اختياري)
+    ├── serum/<rom>/<rom>.crz         <- تلوين DMD بصيغة Serum (اختياري)
+    ├── vni/<rom>/<rom>.vni + .pal    <- تلوين DMD بصيغة VNI (اختياري)
+    └── medias/                       <- وسائط الواجهة (اختياري)"""
+tables_formats_supported = "ℹ صيغ تلوين DMD المدعومة: Serum (.crz) و VNI (.vni + .pal)."
+tables_formats_unsupported = " => الصيغ المملوكة مثل .pac غير مدعومة."
 tables_modifiable = "يمكن تغيير جميع الإعدادات أثناء اللعب عبر F12."
+tables_tips_patch_desc = "تحتاج بعض الطاولات إلى VBS patch لتشتغل على 10.8.1 standalone."
+tables_tips_webp_desc = "يمكنك أيضاً تحويل صور PNG/BMP الكبيرة إلى WebP لتخفيف الطاولات."
+tables_tips_info_here = "-> مزيد من المعلومات"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "المسار:"
 tables_browse = "تصفح..."
 tables_folder_picker = "اختر مجلد الطاولات"

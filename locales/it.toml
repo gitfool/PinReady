@@ -195,6 +195,34 @@ input_custom2 = "Personalizzato #2 (mod tavolo)"
 input_custom3 = "Personalizzato #3 (mod tavolo)"
 input_custom4 = "Personalizzato #4 (mod tavolo)"
 
+# Outputs page
+outputs_heading = "Uscite / Configurazione DOF"
+outputs_desc = "VPX 10.8.1 standalone integra libdof nativamente — nessun plugin esterno da installare. Devi solo fornire una configurazione DOF che descriva l'hardware del tuo cabinet (solenoidi, LED, motori...). Usa il generatore online VPUniverse per produrla, poi estrai il risultato nella cartella qui sotto."
+outputs_workflow_title = "Come generare la tua configurazione DOF"
+outputs_step1_account = "Crea un account (gratuito) sul VPUniverse ConfigTool."
+outputs_step2_table = "Nel tool, crea un nuovo tavolo corrispondente al tuo cabinet."
+outputs_step3_output_system = "Aggiungi un sistema di uscite a questo tavolo (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Collega i tuoi dispositivi alle uscite: solenoidi, flasher, illuminazione GI, pulsanti RGB, strisce LED WS2812, shaker, knocker, lampeggiante…"
+outputs_step5_generate = "Clicca su Generate — il tool produce un .zip con directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml, ecc."
+outputs_step6_extract = "Scarica ed estrai il contenuto del .zip direttamente nella cartella di destinazione qui sotto (i file vanno nella radice di directoutputconfig/, non in una sottocartella)."
+outputs_devices_intro = "Dispositivi collegabili (lista non esaustiva):"
+outputs_device_solenoids = "Solenoidi (flipper, bumper, slingshot)"
+outputs_device_flashers = "Flasher"
+outputs_device_gi = "Illuminazione GI"
+outputs_device_rgb_buttons = "Pulsanti RGB"
+outputs_device_rgb_strips = "Strisce LED RGB WS2811/WS2812"
+outputs_device_shaker = "shaker (motore di vibrazione)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Lampeggiante / strobo"
+outputs_device_gear = "Motore / ventola"
+outputs_generator_title = "Generatore online"
+outputs_generator_desc = "Apre il VPUniverse ConfigTool nel tuo browser predefinito."
+outputs_open_generator = "Apri il VPUniverse ConfigTool"
+outputs_target_title = "Cartella di destinazione su questa macchina"
+outputs_target_desc = "Estrai il .zip generato dal ConfigTool in questa cartella:"
+outputs_open_folder = "Apri la cartella nel file manager"
+outputs_folder_missing = "La cartella non esiste ancora — verrà creata al clic su Apri."
+
 # Tilt page
 tilt_heading = "Sensibilità Tilt / Nudge"
 tilt_desc = "Impostazioni di sensibilità per l'accelerometro (Pinscape / KL25Z)."
@@ -235,17 +263,59 @@ audio_ball_left_right = "Pallina sinistra > destra"
 audio_bottom_left = "Basso sinistra (SL)"
 audio_bottom_right = "Basso destra (SR)"
 audio_wiring_note = "Nota: i colori dei jack possono variare a seconda della scheda audio!"
+audio_3jack_tip = "Scheda audio a 3 jack (verde / rosa / blu)? Riassegnali a 5.1 o 7.1 con %{tool}."
+audio_3jack_tip_more_info = "dettagli"
 audio_wiring_col_output = "Uscita jack"
 audio_wiring_col_channel = "Canale"
 audio_wiring_col_connection = "Collegamento Pincab"
 audio_wiring_stereo_front = "Uscita verde (Front) -> Altoparlanti Backglass (musica)"
 audio_wiring_stereo_no_spatial = "Playfield: il suono esce dagli stessi altoparlanti, senza spazializzazione"
+audio_wiring_51_front_top = "Uscita verde  (Front L/R) -> Eccitatori playfield alti (lato backglass)"
+audio_wiring_51_rear_bottom = "Uscita nera   (Rear L/R)  -> Eccitatori playfield bassi (lato lockbar/giocatore)"
+audio_wiring_51_center_sub = "Uscita arancione (Center/Sub) -> Subwoofer (opzionale)"
+audio_wiring_51_bg_separate = "Backglass su un dispositivo audio separato"
+audio_wiring_51_front_bottom = "Uscita verde  (Front L/R) -> Eccitatori playfield bassi (lato lockbar/giocatore)"
+audio_wiring_51_rear_top = "Uscita nera   (Rear L/R)  -> Eccitatori playfield alti (lato backglass)"
+audio_wiring_71_green = "Verde (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Altoparlanti Backglass (musica) o sistema 2.1"
+audio_wiring_71_black = "Nero (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Eccitatori playfield alti (lato backglass)"
+audio_wiring_71_grey = "Grigio (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Eccitatori playfield bassi (lato lockbar/giocatore)"
+audio_wiring_71_orange = "Arancione (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (opzionale)"
 
 # Tables page
 tables_heading = "Directory dei tavoli"
 tables_desc = "Seleziona la directory contenente i tuoi tavoli VPX (una cartella per tavolo)."
 tables_structure = "Struttura prevista (cartella per tavolo Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- file tavolo (obbligatorio)
+    ├── Table Name.directb2s          <- backglass B2S (opzionale)
+    ├── Table Name.ini                <- override per tavolo (opzionale)
+    ├── Table Name.vbs                <- patch VBS / override script (opzionale)
+    ├── altsound/<rom>/               <- pacchetto altsound (opzionale)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- ROM PinMAME (obbligatoria per tavoli ROM)
+    │   └── nvram/<rom>.nv            <- dati salvataggio (auto-creato)
+    ├── pupvideos/<rom>/              <- video PinUp Player (opzionale)
+    ├── serum/<rom>/<rom>.crz         <- colorazione DMD Serum (opzionale)
+    ├── vni/<rom>/<rom>.vni + .pal    <- colorazione DMD VNI (opzionale)
+    └── medias/                       <- media frontend (opzionale)"""
+tables_formats_supported = "ℹ Formati di colorazione DMD supportati: Serum (.crz) e VNI (.vni + .pal)."
+tables_formats_unsupported = " => Formati proprietari come .pac non sono supportati."
 tables_modifiable = "Tutte le impostazioni possono essere modificate in gioco con F12."
+tables_tips_patch_desc = "Alcuni tavoli richiedono un patch VBS per funzionare su 10.8.1 standalone."
+tables_tips_webp_desc = "Puoi anche convertire le immagini PNG/BMP grandi in WebP per alleggerire i tavoli."
+tables_tips_info_here = "-> info qui"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Percorso:"
 tables_browse = "Sfoglia..."
 tables_folder_picker = "Seleziona directory dei tavoli"

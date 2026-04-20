@@ -4,6 +4,7 @@
 page_screens = "স্ক্রিন"
 page_rendering = "রেন্ডারিং"
 page_inputs = "ইনপুট"
+page_outputs = "আউটপুট"
 page_tilt = "টিল্ট / নাজ"
 page_audio = "অডিও"
 page_tables = "টেবিল"
@@ -194,6 +195,34 @@ input_custom2 = "কাস্টম #2 (টেবিল মড)"
 input_custom3 = "কাস্টম #3 (টেবিল মড)"
 input_custom4 = "কাস্টম #4 (টেবিল মড)"
 
+# Outputs page
+outputs_heading = "আউটপুট / DOF কনফিগারেশন"
+outputs_desc = "VPX 10.8.1 standalone libdof-কে নেটিভভাবে একীভূত করে — কোনো বাহ্যিক প্লাগইন ইনস্টল করতে হবে না। আপনাকে শুধু আপনার ক্যাবিনেটের হার্ডওয়্যার (সোলেনয়েড, LED, মোটর...) বর্ণনা করে এমন একটি DOF কনফিগারেশন সরবরাহ করতে হবে। এটি তৈরি করতে VPUniverse অনলাইন জেনারেটর ব্যবহার করুন, তারপর ফলাফল নিচের ফোল্ডারে এক্সট্র্যাক্ট করুন।"
+outputs_workflow_title = "আপনার DOF কনফিগারেশন কীভাবে তৈরি করবেন"
+outputs_step1_account = "VPUniverse ConfigTool-এ একটি (বিনামূল্যে) অ্যাকাউন্ট তৈরি করুন।"
+outputs_step2_table = "টুলে, আপনার ক্যাবিনেটের সাথে সঙ্গতিপূর্ণ একটি নতুন টেবিল তৈরি করুন।"
+outputs_step3_output_system = "সেই টেবিলে একটি আউটপুট সিস্টেম যোগ করুন (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)।"
+outputs_step4_devices = "আউটপুটগুলিতে আপনার ডিভাইসগুলি সংযুক্ত করুন: সোলেনয়েড, ফ্ল্যাশার, GI আলো, RGB বোতাম, WS2812 LED স্ট্রিপ, shaker, knocker, সংকেত বাতি…"
+outputs_step5_generate = "Generate ক্লিক করুন — টুলটি directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml ইত্যাদি সম্বলিত একটি .zip তৈরি করে।"
+outputs_step6_extract = ".zip ডাউনলোড করে এর বিষয়বস্তু সরাসরি নিচের লক্ষ্য ফোল্ডারে এক্সট্র্যাক্ট করুন (ফাইলগুলি directoutputconfig/-এর মূলে থাকবে, কোনো উপ-ফোল্ডারে নয়)।"
+outputs_devices_intro = "সংযোগযোগ্য ডিভাইস (অসম্পূর্ণ তালিকা):"
+outputs_device_solenoids = "সোলেনয়েড (ফ্লিপার, বাম্পার, স্লিং)"
+outputs_device_flashers = "ফ্ল্যাশার"
+outputs_device_gi = "GI আলো"
+outputs_device_rgb_buttons = "RGB বোতাম"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED স্ট্রিপ"
+outputs_device_shaker = "shaker (কম্পন মোটর)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "সংকেত বাতি / স্ট্রোব"
+outputs_device_gear = "মোটর / ফ্যান"
+outputs_generator_title = "অনলাইন জেনারেটর"
+outputs_generator_desc = "আপনার ডিফল্ট ব্রাউজারে VPUniverse ConfigTool খোলে।"
+outputs_open_generator = "VPUniverse ConfigTool খুলুন"
+outputs_target_title = "এই মেশিনে লক্ষ্য ফোল্ডার"
+outputs_target_desc = "ConfigTool দ্বারা তৈরি .zip এই ফোল্ডারে এক্সট্র্যাক্ট করুন:"
+outputs_open_folder = "ফাইল ম্যানেজারে ফোল্ডার খুলুন"
+outputs_folder_missing = "ফোল্ডারটি এখনও বিদ্যমান নেই — আপনি খোলা ক্লিক করলে এটি তৈরি হবে।"
+
 # Tilt page
 tilt_heading = "টিল্ট / নাজ সংবেদনশীলতা"
 tilt_desc = "আপনার অ্যাক্সেলেরোমিটারের (Pinscape / KL25Z) সংবেদনশীলতা সেটিংস।"
@@ -234,17 +263,59 @@ audio_ball_left_right = "বল বাম > ডান"
 audio_bottom_left = "নিচে বাম (SL)"
 audio_bottom_right = "নিচে ডান (SR)"
 audio_wiring_note = "দ্রষ্টব্য: সাউন্ড কার্ড অনুযায়ী জ্যাকের রং ভিন্ন হতে পারে!"
+audio_3jack_tip = "৩-জ্যাক সাউন্ড কার্ড (সবুজ / গোলাপি / নীল)? %{tool} দিয়ে এদের 5.1 বা 7.1-এ পুনরায় বরাদ্দ করুন।"
+audio_3jack_tip_more_info = "বিস্তারিত"
 audio_wiring_col_output = "জ্যাক আউটপুট"
 audio_wiring_col_channel = "চ্যানেল"
 audio_wiring_col_connection = "Pincab সংযোগ"
 audio_wiring_stereo_front = "সবুজ আউটপুট (Front) -> Backglass স্পিকার (সঙ্গীত)"
 audio_wiring_stereo_no_spatial = "Playfield: শব্দ একই স্পিকার থেকে আসে, কোনো স্থানিক বিন্যাস নেই"
+audio_wiring_51_front_top = "সবুজ আউটপুট  (Front L/R) -> Playfield উপরের এক্সাইটার (backglass পাশ)"
+audio_wiring_51_rear_bottom = "কালো আউটপুট  (Rear L/R)  -> Playfield নিচের এক্সাইটার (lockbar/খেলোয়াড় পাশ)"
+audio_wiring_51_center_sub = "কমলা আউটপুট (Center/Sub) -> Subwoofer (ঐচ্ছিক)"
+audio_wiring_51_bg_separate = "Backglass একটি পৃথক অডিও ডিভাইসে"
+audio_wiring_51_front_bottom = "সবুজ আউটপুট  (Front L/R) -> Playfield নিচের এক্সাইটার (lockbar/খেলোয়াড় পাশ)"
+audio_wiring_51_rear_top = "কালো আউটপুট  (Rear L/R)  -> Playfield উপরের এক্সাইটার (backglass পাশ)"
+audio_wiring_71_green = "সবুজ (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass স্পিকার (সঙ্গীত) অথবা 2.1 সিস্টেম"
+audio_wiring_71_black = "কালো (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Playfield উপরের এক্সাইটার (backglass পাশ)"
+audio_wiring_71_grey = "ধূসর (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Playfield নিচের এক্সাইটার (lockbar/খেলোয়াড় পাশ)"
+audio_wiring_71_orange = "কমলা (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (ঐচ্ছিক)"
 
 # Tables page
 tables_heading = "টেবিল ডিরেক্টরি"
 tables_desc = "আপনার VPX টেবিল ধারণকারী ডিরেক্টরি নির্বাচন করুন (প্রতি টেবিলে একটি ফোল্ডার)।"
 tables_structure = "প্রত্যাশিত লেআউট (ফোল্ডার-প্রতি-টেবিল Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- টেবিল ফাইল (আবশ্যক)
+    ├── Table Name.directb2s          <- backglass B2S (ঐচ্ছিক)
+    ├── Table Name.ini                <- টেবিল-ভিত্তিক ওভাররাইড (ঐচ্ছিক)
+    ├── Table Name.vbs                <- VBS patch / স্ক্রিপ্ট ওভাররাইড (ঐচ্ছিক)
+    ├── altsound/<rom>/               <- altsound প্যাক (ঐচ্ছিক)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (ROM টেবিলের জন্য আবশ্যক)
+    │   └── nvram/<rom>.nv            <- সংরক্ষিত ডেটা (স্বয়ংক্রিয়ভাবে তৈরি)
+    ├── pupvideos/<rom>/              <- PinUp Player ভিডিও (ঐচ্ছিক)
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD রঙিন (ঐচ্ছিক)
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD রঙিন (ঐচ্ছিক)
+    └── medias/                       <- frontend মিডিয়া (ঐচ্ছিক)"""
+tables_formats_supported = "ℹ সমর্থিত DMD রঙিন ফরম্যাট: Serum (.crz) এবং VNI (.vni + .pal)।"
+tables_formats_unsupported = " => .pac এর মতো মালিকানাধীন ফরম্যাট সমর্থিত নয়।"
 tables_modifiable = "সব সেটিংস F12 দিয়ে ইন-গেমে পরিবর্তন করা যায়।"
+tables_tips_patch_desc = "কিছু টেবিল 10.8.1 standalone-এ চালাতে VBS patch প্রয়োজন।"
+tables_tips_webp_desc = "আপনি টেবিল হালকা করতে বড় PNG/BMP ছবিগুলিকে WebP-এ রূপান্তরও করতে পারেন।"
+tables_tips_info_here = "-> এখানে তথ্য"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "পথ:"
 tables_browse = "ব্রাউজ..."
 tables_folder_picker = "টেবিল ডিরেক্টরি নির্বাচন করুন"

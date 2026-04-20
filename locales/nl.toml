@@ -4,6 +4,7 @@
 page_screens = "Schermen"
 page_rendering = "Rendering"
 page_inputs = "Invoer"
+page_outputs = "Uitgangen"
 page_tilt = "Tilt / Nudge"
 page_audio = "Audio"
 page_tables = "Tafels"
@@ -194,6 +195,34 @@ input_custom2 = "Aangepast #2 (tafelmod)"
 input_custom3 = "Aangepast #3 (tafelmod)"
 input_custom4 = "Aangepast #4 (tafelmod)"
 
+# Outputs page
+outputs_heading = "Uitgangen / DOF-configuratie"
+outputs_desc = "VPX 10.8.1 standalone integreert libdof native — geen externe plugin nodig. U hoeft alleen een DOF-configuratie aan te leveren die de hardware van uw cabinet beschrijft (solenoïden, LEDs, motoren...). Gebruik de online VPUniverse-generator om deze te produceren en pak het resultaat vervolgens uit in de onderstaande map."
+outputs_workflow_title = "Zo genereert u uw DOF-configuratie"
+outputs_step1_account = "Maak een (gratis) account aan op de VPUniverse ConfigTool."
+outputs_step2_table = "Maak in de tool een nieuwe tafel die overeenkomt met uw cabinet."
+outputs_step3_output_system = "Voeg een uitgangssysteem toe aan die tafel (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Koppel uw apparaten aan de uitgangen: solenoïden, flashers, GI-verlichting, RGB-knoppen, WS2812 LED-strips, shaker, knocker, zwaailicht…"
+outputs_step5_generate = "Klik op Generate — de tool produceert een .zip met directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml enz."
+outputs_step6_extract = "Download de .zip en pak de inhoud direct uit in de doelmap hieronder (de bestanden horen in de wortel van directoutputconfig/, niet in een submap)."
+outputs_devices_intro = "Apparaten die u kunt aansluiten (niet-uitputtende lijst):"
+outputs_device_solenoids = "Solenoïden (flippers, bumpers, slings)"
+outputs_device_flashers = "Flashers"
+outputs_device_gi = "GI-verlichting"
+outputs_device_rgb_buttons = "RGB-knoppen"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED-strips"
+outputs_device_shaker = "shaker (trilmotor)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Zwaailicht / strobo"
+outputs_device_gear = "Motor / ventilator"
+outputs_generator_title = "Online generator"
+outputs_generator_desc = "Opent de VPUniverse ConfigTool in uw standaardbrowser."
+outputs_open_generator = "Open de VPUniverse ConfigTool"
+outputs_target_title = "Doelmap op deze machine"
+outputs_target_desc = "Pak de door de ConfigTool gegenereerde .zip uit in deze map:"
+outputs_open_folder = "Map openen in bestandsbeheer"
+outputs_folder_missing = "De map bestaat nog niet — deze wordt aangemaakt zodra u op Openen klikt."
+
 # Tilt page
 tilt_heading = "Tilt-/Nudge-gevoeligheid"
 tilt_desc = "Gevoeligheidsinstellingen voor uw versnellingsmeter (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Bal links > rechts"
 audio_bottom_left = "Linksonder (SL)"
 audio_bottom_right = "Rechtsonder (SR)"
 audio_wiring_note = "Let op: jackkleuren kunnen per geluidskaart verschillen!"
+audio_3jack_tip = "Geluidskaart met 3 jacks (groen / roze / blauw)? Herverdeel ze naar 5.1 of 7.1 met %{tool}."
+audio_3jack_tip_more_info = "details"
 audio_wiring_col_output = "Jack-uitgang"
 audio_wiring_col_channel = "Kanaal"
 audio_wiring_col_connection = "Pincab-aansluiting"
 audio_wiring_stereo_front = "Groene uitgang (Front) -> Backglass-luidsprekers (muziek)"
 audio_wiring_stereo_no_spatial = "Playfield: het geluid komt uit dezelfde luidsprekers, geen ruimtelijke spreiding"
+audio_wiring_51_front_top = "Groene uitgang (Front L/R) -> Playfield-exciters boven (backglass-kant)"
+audio_wiring_51_rear_bottom = "Zwarte uitgang (Rear L/R)  -> Playfield-exciters onder (lockbar/speler-kant)"
+audio_wiring_51_center_sub = "Oranje uitgang (Center/Sub) -> Subwoofer (optioneel)"
+audio_wiring_51_bg_separate = "Backglass op een apart audioapparaat"
+audio_wiring_51_front_bottom = "Groene uitgang (Front L/R) -> Playfield-exciters onder (lockbar/speler-kant)"
+audio_wiring_51_rear_top = "Zwarte uitgang (Rear L/R)  -> Playfield-exciters boven (backglass-kant)"
+audio_wiring_71_green = "Groen (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass-luidsprekers (muziek) of 2.1-systeem"
+audio_wiring_71_black = "Zwart (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Playfield-exciters boven (backglass-kant)"
+audio_wiring_71_grey = "Grijs (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Playfield-exciters onder (lockbar/speler-kant)"
+audio_wiring_71_orange = "Oranje (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (optioneel)"
 
 # Tables page
 tables_heading = "Tafelmap"
 tables_desc = "Selecteer de map met uw VPX-tafels (één map per tafel)."
 tables_structure = "Verwachte structuur (map per tafel, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- tafelbestand (vereist)
+    ├── Table Name.directb2s          <- backglass B2S (optioneel)
+    ├── Table Name.ini                <- per-tafel overrides (optioneel)
+    ├── Table Name.vbs                <- VBS-patch / script-override (optioneel)
+    ├── altsound/<rom>/               <- altsound-pakket (optioneel)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME-ROM (vereist voor ROM-tafels)
+    │   └── nvram/<rom>.nv            <- opgeslagen gegevens (automatisch)
+    ├── pupvideos/<rom>/              <- PinUp Player-video's (optioneel)
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD-kleuring (optioneel)
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD-kleuring (optioneel)
+    └── medias/                       <- frontend-media (optioneel)"""
+tables_formats_supported = "ℹ Ondersteunde DMD-kleuringsformaten: Serum (.crz) en VNI (.vni + .pal)."
+tables_formats_unsupported = " => Propriëtaire formaten zoals .pac worden niet ondersteund."
 tables_modifiable = "Alle instellingen kunnen in het spel worden gewijzigd via F12."
+tables_tips_patch_desc = "Sommige tafels hebben een VBS-patch nodig om op 10.8.1 standalone te draaien."
+tables_tips_webp_desc = "U kunt ook grote PNG/BMP-afbeeldingen omzetten naar WebP om tafels lichter te maken."
+tables_tips_info_here = "-> info hier"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Pad:"
 tables_browse = "Bladeren..."
 tables_folder_picker = "Tafelmap selecteren"

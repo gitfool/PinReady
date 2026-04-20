@@ -673,6 +673,72 @@ impl App {
             }
         });
     }
+
+    /// Poll the PinReady self-update channels. On a completed download the
+    /// running process exits immediately — the freshly-spawned child from
+    /// `download_pinready_and_replace` takes over as the user-facing instance.
+    pub(super) fn process_pinready_update_check(&mut self, ctx: &egui::Context) {
+        if let Some(rx) = &self.pinready_update_check_rx {
+            if let Ok(result) = rx.try_recv() {
+                match result {
+                    Ok(release) => {
+                        if updater::is_pinready_update_available(&release) {
+                            log::info!(
+                                "PinReady update available: {} (running: {})",
+                                release.tag,
+                                updater::CURRENT_PINREADY_VERSION
+                            );
+                            self.pinready_latest_release = Some(release);
+                        } else {
+                            log::info!("PinReady is up to date ({})", release.tag);
+                            self.pinready_latest_release = None;
+                        }
+                    }
+                    Err(e) => log::warn!("PinReady update check failed: {e}"),
+                }
+                self.pinready_update_check_rx = None;
+            }
+        }
+
+        if let Some(rx) = &self.pinready_update_progress_rx {
+            while let Ok(progress) = rx.try_recv() {
+                match progress {
+                    UpdateProgress::Downloading(current, total) => {
+                        self.pinready_update_progress = (current, total);
+                    }
+                    UpdateProgress::Extracting => {
+                        self.pinready_updating = true;
+                    }
+                    UpdateProgress::Done(_) => {
+                        log::info!("PinReady update: binary replaced, restarting");
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        std::process::exit(0);
+                    }
+                    UpdateProgress::Error(msg) => {
+                        self.pinready_updating = false;
+                        self.pinready_update_error = Some(msg.clone());
+                        self.pinready_update_progress_rx = None;
+                        log::error!("PinReady update failed: {}", msg);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(super) fn start_pinready_download(&mut self, release: &ReleaseInfo) {
+        let release = release.clone();
+        let (tx, rx) = crossbeam_channel::unbounded();
+        self.pinready_update_progress_rx = Some(rx);
+        self.pinready_updating = true;
+        self.pinready_update_progress = (0, release.asset_size);
+        self.pinready_update_error = None;
+        std::thread::spawn(move || {
+            if let Err(e) = updater::download_pinready_and_replace(&release, tx.clone()) {
+                let _ = tx.send(UpdateProgress::Error(format!("{e}")));
+            }
+        });
+    }
 }
 
 #[cfg(test)]

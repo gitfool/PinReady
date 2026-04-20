@@ -4,6 +4,7 @@
 page_screens = "Ekranlar"
 page_rendering = "Görüntüleme"
 page_inputs = "Girişler"
+page_outputs = "Çıkışlar"
 page_tilt = "Tilt / Nudge"
 page_audio = "Ses"
 page_tables = "Masalar"
@@ -194,6 +195,34 @@ input_custom2 = "Özel #2 (masa modu)"
 input_custom3 = "Özel #3 (masa modu)"
 input_custom4 = "Özel #4 (masa modu)"
 
+# Outputs page
+outputs_heading = "Çıkışlar / DOF yapılandırması"
+outputs_desc = "VPX 10.8.1 standalone, libdof'u yerel olarak entegre eder — kurulacak harici eklenti yoktur. Sadece kabinet donanımınızı (solenoidler, LED'ler, motorlar...) tanımlayan bir DOF yapılandırması sağlamanız gerekir. Üretmek için VPUniverse çevrimiçi üreticisini kullanın, ardından sonucu aşağıdaki klasöre çıkarın."
+outputs_workflow_title = "DOF yapılandırmanızı nasıl oluşturursunuz"
+outputs_step1_account = "VPUniverse ConfigTool üzerinde (ücretsiz) bir hesap oluşturun."
+outputs_step2_table = "Araçta, kabinetinize karşılık gelen yeni bir masa oluşturun."
+outputs_step3_output_system = "Bu masaya bir çıkış sistemi ekleyin (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Cihazlarınızı çıkışlara bağlayın: solenoidler, flasher'lar, GI aydınlatma, RGB düğmeler, WS2812 LED şeritler, shaker, knocker, uyarı lambası…"
+outputs_step5_generate = "Generate'e tıklayın — araç directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml vb. içeren bir .zip üretir."
+outputs_step6_extract = ".zip dosyasını indirip içeriğini doğrudan aşağıdaki hedef klasöre çıkarın (dosyalar directoutputconfig/ kökünde yer alır, alt klasörde değil)."
+outputs_devices_intro = "Bağlayabileceğiniz cihazlar (kapsamlı olmayan liste):"
+outputs_device_solenoids = "Solenoidler (flipper, bumper, sling)"
+outputs_device_flashers = "Flasher'lar"
+outputs_device_gi = "GI aydınlatma"
+outputs_device_rgb_buttons = "RGB düğmeler"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED şeritler"
+outputs_device_shaker = "shaker (titreşim motoru)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Uyarı lambası / strobe"
+outputs_device_gear = "Motor / fan"
+outputs_generator_title = "Çevrimiçi üretici"
+outputs_generator_desc = "Varsayılan tarayıcınızda VPUniverse ConfigTool'u açar."
+outputs_open_generator = "VPUniverse ConfigTool'u aç"
+outputs_target_title = "Bu makinedeki hedef klasör"
+outputs_target_desc = "ConfigTool tarafından üretilen .zip'i bu klasöre çıkarın:"
+outputs_open_folder = "Klasörü dosya yöneticisinde aç"
+outputs_folder_missing = "Klasör henüz yok — Aç'a tıklandığında oluşturulacak."
+
 # Tilt page
 tilt_heading = "Tilt / Nudge hassasiyeti"
 tilt_desc = "İvmeölçer hassasiyet ayarları (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Top sol > sağ"
 audio_bottom_left = "Alt sol (SL)"
 audio_bottom_right = "Alt sağ (SR)"
 audio_wiring_note = "Not: jack renkleri ses kartına göre değişebilir!"
+audio_3jack_tip = "3 jack'lı ses kartı (yeşil / pembe / mavi)? %{tool} ile 5.1 veya 7.1 olarak yeniden atayın."
+audio_3jack_tip_more_info = "ayrıntılar"
 audio_wiring_col_output = "Jack çıkışı"
 audio_wiring_col_channel = "Kanal"
 audio_wiring_col_connection = "Pincab bağlantısı"
 audio_wiring_stereo_front = "Yeşil çıkış (Front) -> Backglass hoparlörleri (müzik)"
 audio_wiring_stereo_no_spatial = "Playfield: ses aynı hoparlörlerden çıkar, uzamsal dağılım yok"
+audio_wiring_51_front_top = "Yeşil çıkış  (Front L/R) -> Üst playfield exciter'ları (backglass tarafı)"
+audio_wiring_51_rear_bottom = "Siyah çıkış  (Rear L/R)  -> Alt playfield exciter'ları (lockbar/oyuncu tarafı)"
+audio_wiring_51_center_sub = "Turuncu çıkış (Center/Sub) -> Subwoofer (isteğe bağlı)"
+audio_wiring_51_bg_separate = "Backglass ayrı bir ses cihazında"
+audio_wiring_51_front_bottom = "Yeşil çıkış  (Front L/R) -> Alt playfield exciter'ları (lockbar/oyuncu tarafı)"
+audio_wiring_51_rear_top = "Siyah çıkış  (Rear L/R)  -> Üst playfield exciter'ları (backglass tarafı)"
+audio_wiring_71_green = "Yeşil (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass hoparlörleri (müzik) veya 2.1 sistem"
+audio_wiring_71_black = "Siyah (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Üst playfield exciter'ları (backglass tarafı)"
+audio_wiring_71_grey = "Gri (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Alt playfield exciter'ları (lockbar/oyuncu tarafı)"
+audio_wiring_71_orange = "Turuncu (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (isteğe bağlı)"
 
 # Tables page
 tables_heading = "Masa dizini"
 tables_desc = "VPX masalarınızın bulunduğu dizini seçin (masa başına bir klasör)."
 tables_structure = "Beklenen yapı (masa başına klasör, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- masa dosyası (zorunlu)
+    ├── Table Name.directb2s          <- backglass B2S (isteğe bağlı)
+    ├── Table Name.ini                <- masa başına geçersiz kılma (isteğe bağlı)
+    ├── Table Name.vbs                <- VBS patch / script geçersiz kılma (isteğe bağlı)
+    ├── altsound/<rom>/               <- altsound paketi (isteğe bağlı)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (ROM masaları için zorunlu)
+    │   └── nvram/<rom>.nv            <- kayıt verisi (otomatik oluşturulur)
+    ├── pupvideos/<rom>/              <- PinUp Player videoları (isteğe bağlı)
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD renklendirmesi (isteğe bağlı)
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD renklendirmesi (isteğe bağlı)
+    └── medias/                       <- frontend medyası (isteğe bağlı)"""
+tables_formats_supported = "ℹ Desteklenen DMD renklendirme biçimleri: Serum (.crz) ve VNI (.vni + .pal)."
+tables_formats_unsupported = " => .pac gibi tescilli biçimler desteklenmez."
 tables_modifiable = "Tüm ayarlar oyun içinde F12 ile değiştirilebilir."
+tables_tips_patch_desc = "Bazı masaların 10.8.1 standalone'da çalışması için VBS patch gerekir."
+tables_tips_webp_desc = "Ayrıca büyük PNG/BMP görüntüleri WebP'ye dönüştürerek masaları hafifletebilirsiniz."
+tables_tips_info_here = "-> bilgi burada"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Yol:"
 tables_browse = "Gözat..."
 tables_folder_picker = "Masa dizinini seç"

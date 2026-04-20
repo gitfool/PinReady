@@ -4,6 +4,7 @@
 page_screens = "螢幕"
 page_rendering = "渲染"
 page_inputs = "輸入"
+page_outputs = "輸出"
 page_tilt = "傾斜 / 推動"
 page_audio = "音訊"
 page_tables = "球台"
@@ -194,6 +195,34 @@ input_custom2 = "自訂 #2（球台模組）"
 input_custom3 = "自訂 #3（球台模組）"
 input_custom4 = "自訂 #4（球台模組）"
 
+# Outputs page
+outputs_heading = "輸出 / DOF 設定"
+outputs_desc = "VPX 10.8.1 standalone 原生整合了 libdof——無需安裝外部外掛。您只需提供一份描述機台硬體（電磁鐵、LED、馬達……）的 DOF 設定。使用 VPUniverse 線上產生器建立，再將結果解壓縮到下方資料夾。"
+outputs_workflow_title = "如何產生您的 DOF 設定"
+outputs_step1_account = "在 VPUniverse ConfigTool 上建立一個（免費）帳號。"
+outputs_step2_table = "在工具中，建立一個與您的機台對應的新球台。"
+outputs_step3_output_system = "為該球台新增一個輸出系統（Pinscape、LedWiz、PinOne、DudesCab、PacLed、TeensyStripController…）。"
+outputs_step4_devices = "將裝置連接到輸出：電磁鐵、閃光燈、GI 照明、RGB 按鈕、WS2812 LED 燈條、shaker、knocker、警示燈……"
+outputs_step5_generate = "點擊 Generate — 工具會產生一個包含 directoutputconfig51.ini、DirectOutputShapes.xml、tablemappings.xml 等的 .zip 檔案。"
+outputs_step6_extract = "下載並將 .zip 的內容直接解壓縮到下方目標資料夾（檔案應位於 directoutputconfig/ 的根目錄，而非子資料夾中）。"
+outputs_devices_intro = "可連接的裝置（非全部）："
+outputs_device_solenoids = "電磁鐵（翻板、碰撞器、彈射器）"
+outputs_device_flashers = "閃光燈"
+outputs_device_gi = "GI 照明"
+outputs_device_rgb_buttons = "RGB 按鈕"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED 燈條"
+outputs_device_shaker = "shaker（振動馬達）"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "警示燈 / 頻閃燈"
+outputs_device_gear = "馬達 / 風扇"
+outputs_generator_title = "線上產生器"
+outputs_generator_desc = "在預設瀏覽器中開啟 VPUniverse ConfigTool。"
+outputs_open_generator = "開啟 VPUniverse ConfigTool"
+outputs_target_title = "本機目標資料夾"
+outputs_target_desc = "將 ConfigTool 產生的 .zip 解壓縮到此資料夾："
+outputs_open_folder = "在檔案管理員中開啟資料夾"
+outputs_folder_missing = "資料夾尚不存在——點擊「開啟」時將建立。"
+
 # Tilt page
 tilt_heading = "傾斜 / 推動靈敏度"
 tilt_desc = "加速度計（Pinscape / KL25Z）的靈敏度設定。"
@@ -234,17 +263,59 @@ audio_ball_left_right = "球從左到右"
 audio_bottom_left = "左下 (SL)"
 audio_bottom_right = "右下 (SR)"
 audio_wiring_note = "注意：不同音效卡的插孔顏色可能不同！"
+audio_3jack_tip = "3 插孔音效卡（綠 / 粉 / 藍）？使用 %{tool} 將它們重新指派為 5.1 或 7.1。"
+audio_3jack_tip_more_info = "詳情"
 audio_wiring_col_output = "插孔輸出"
 audio_wiring_col_channel = "聲道"
 audio_wiring_col_connection = "Pincab 連接"
 audio_wiring_stereo_front = "綠色輸出 (Front) -> Backglass 揚聲器 (音樂)"
 audio_wiring_stereo_no_spatial = "Playfield: 聲音來自相同的揚聲器,無空間化"
+audio_wiring_51_front_top = "綠色輸出  (Front L/R) -> Playfield 頂部激振器（backglass 側）"
+audio_wiring_51_rear_bottom = "黑色輸出  (Rear L/R)  -> Playfield 底部激振器（lockbar/玩家側）"
+audio_wiring_51_center_sub = "橙色輸出 (Center/Sub) -> 重低音喇叭（可選）"
+audio_wiring_51_bg_separate = "Backglass 使用獨立音訊裝置"
+audio_wiring_51_front_bottom = "綠色輸出  (Front L/R) -> Playfield 底部激振器（lockbar/玩家側）"
+audio_wiring_51_rear_top = "黑色輸出  (Rear L/R)  -> Playfield 頂部激振器（backglass 側）"
+audio_wiring_71_green = "綠色 (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass 揚聲器（音樂）或 2.1 系統"
+audio_wiring_71_black = "黑色 (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Playfield 頂部激振器（backglass 側）"
+audio_wiring_71_grey = "灰色 (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Playfield 底部激振器（lockbar/玩家側）"
+audio_wiring_71_orange = "橙色 (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "重低音喇叭 / Bass shaker（可選）"
 
 # Tables page
 tables_heading = "球台目錄"
 tables_desc = "選擇包含 VPX 球台的目錄（每台一個資料夾）。"
 tables_structure = "預期佈局（Visual Pinball 10.8 每台一個資料夾）："
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- 球台檔案（必需）
+    ├── Table Name.directb2s          <- backglass B2S（選用）
+    ├── Table Name.ini                <- 單台覆寫設定（選用）
+    ├── Table Name.vbs                <- VBS 修補 / 腳本覆寫（選用）
+    ├── altsound/<rom>/               <- altsound 套件（選用）
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM（ROM 球台必需）
+    │   └── nvram/<rom>.nv            <- 存檔資料（自動建立）
+    ├── pupvideos/<rom>/              <- PinUp Player 影片（選用）
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD 上色（選用）
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD 上色（選用）
+    └── medias/                       <- 前端媒體（選用）"""
+tables_formats_supported = "ℹ 支援的 DMD 上色格式：Serum (.crz) 和 VNI (.vni + .pal)。"
+tables_formats_unsupported = " => 專有格式如 .pac 不受支援。"
 tables_modifiable = "所有設定均可透過 F12 在遊戲內修改。"
+tables_tips_patch_desc = "部分球台需要 VBS 修補才能在 10.8.1 standalone 上執行。"
+tables_tips_webp_desc = "您還可以將大型 PNG/BMP 圖片轉換為 WebP 以縮減球台大小。"
+tables_tips_info_here = "-> 詳情請見"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "路徑："
 tables_browse = "瀏覽..."
 tables_folder_picker = "選擇球台目錄"

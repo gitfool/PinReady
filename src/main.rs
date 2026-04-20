@@ -185,38 +185,73 @@ fn main() -> Result<()> {
     } else {
         None
     };
-    // Primary monitor index — used to anchor the window on the user's main
-    // display instead of whatever screen the WM decides (multi-monitor setups).
+    // Primary monitor index — used to place the launcher in borderless
+    // fullscreen on the user's main display when not in cabinet mode.
     let primary_idx = displays.iter().position(|d| d.is_primary).unwrap_or(0);
+
+    // Compute the initial window size based on mode:
+    //  - Wizard: windowed square, 80% of primary monitor's smaller axis
+    //      1920x1080 -> 864x864   2560x1440 -> 1152x1152
+    //      3840x2160 -> 1728x1728 3840x1080 -> 864x864 (32:9 ultrawide)
+    //  - Launcher: full target monitor dims (cabinet -> playfield, else
+    //    primary). with_monitor below promotes it to borderless fullscreen;
+    //    the explicit inner_size avoids winit's 800x600 default being
+    //    visible during the WM fullscreen transition on X11.
+    let initial_size: [f32; 2] = if start_in_wizard {
+        displays
+            .iter()
+            .find(|d| d.is_primary)
+            .or_else(|| displays.first())
+            .map(|d| {
+                let side = 0.80 * (d.width.min(d.height)) as f32;
+                [side, side]
+            })
+            .unwrap_or([864.0, 864.0])
+    } else {
+        let target_idx = if cabinet_mode {
+            playfield_idx.unwrap_or(primary_idx)
+        } else {
+            primary_idx
+        };
+        displays
+            .get(target_idx)
+            .map(|d| [d.width as f32, d.height as f32])
+            .unwrap_or([1920.0, 1080.0])
+    };
 
     // Create app (starts joystick + audio threads internally)
     let mut app = app::App::new(vpx_config, db, start_in_wizard, displays);
 
-    // Launch eframe. Initial size is in logical pixels — the OS's DPI scaling
-    // is applied on top so the window grows proportionally on HiDPI displays.
-    // Grown to match the +20% zoom_factor set below so content keeps the same
-    // logical room.
+    // Launch eframe. Wizard stays windowed; launcher (desktop or cabinet)
+    // goes borderless fullscreen on the target monitor.
     let mut viewport = egui::ViewportBuilder::default()
         .with_title(format!("PinReady v{VERSION}"))
-        .with_inner_size([1320.0, 900.0])
-        .with_monitor(primary_idx);
-    if cabinet_mode {
-        viewport = viewport
-            .with_rotation(eframe::emath::ViewportRotation::CW90)
-            .with_decorations(false);
-        if let Some(idx) = playfield_idx {
-            log::info!(
-                "Cabinet mode: rotating launcher CW90 on monitor index {}",
-                idx
-            );
-            viewport = viewport.with_monitor(idx);
-            // kiosk_bounds drives cursor lock + warp to grid center after the
-            // window is mapped. Placement itself is handled by with_monitor.
-            app.enable_kiosk_cursor();
+        .with_inner_size(initial_size);
+    if !start_in_wizard {
+        // Launcher → borderless fullscreen on the target monitor.
+        viewport = viewport.with_decorations(false);
+        if cabinet_mode {
+            viewport = viewport.with_rotation(eframe::emath::ViewportRotation::CW90);
+            if let Some(idx) = playfield_idx {
+                log::info!(
+                    "Cabinet mode: rotating launcher CW90 on monitor index {}",
+                    idx
+                );
+                viewport = viewport.with_monitor(idx);
+                // kiosk_bounds drives cursor lock + warp to grid center after
+                // the window is mapped. Placement is handled by with_monitor.
+                app.enable_kiosk_cursor();
+            } else {
+                log::warn!(
+                    "Cabinet mode: Playfield display not found, rotation applied without repositioning"
+                );
+            }
         } else {
-            log::warn!(
-                "Cabinet mode: Playfield display not found, rotation applied without repositioning"
+            log::info!(
+                "Launcher desktop mode: borderless fullscreen on monitor index {}",
+                primary_idx
             );
+            viewport = viewport.with_monitor(primary_idx);
         }
     }
     let options = eframe::NativeOptions {

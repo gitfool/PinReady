@@ -11,6 +11,7 @@ impl App {
         self.handle_launcher_joystick(ui);
         self.process_vpx_status(ui.ctx());
         self.process_update_check();
+        self.process_pinready_update_check(ui.ctx());
         // Only repaint when needed: bg extraction in progress, VPX running, joystick connected, or update in progress
         if self.bg_rx.is_some()
             || self.vpx_running.load(Ordering::Relaxed)
@@ -68,151 +69,235 @@ impl App {
         // Window placement handled via ViewportBuilder::with_monitor (main PF)
         // and render_cover_viewports (BG/DMD/Topper).
 
-        // Header scaled x3 — kiosk mode runs on big 4K PFs where the default
-        // header was unreadable from a pincab play distance.
-        let h_size = 72.0;
-        ui.horizontal(|ui| {
-            ui.label(
-                egui::RichText::new(format!("PinReady v{}", env!("CARGO_PKG_VERSION")))
-                    .size(h_size)
-                    .strong(),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .button(egui::RichText::new(t!("launcher_quit")).size(h_size))
-                    .clicked()
-                {
-                    self.quit_launcher(ui.ctx());
-                }
-                if ui
-                    .button(egui::RichText::new(t!("launcher_config")).size(h_size))
-                    .clicked()
-                {
-                    self.mode = AppMode::Wizard;
-                }
-                // Update button — visible when a new release is available
-                if self.update_downloading {
-                    let (current, total) = self.update_progress;
-                    if total > 0 {
-                        let pct = (current as f32 / total as f32 * 100.0) as u32;
-                        let mb = current / (1024 * 1024);
-                        let total_mb = total / (1024 * 1024);
+        // Header size: 2% of the window's available height, rounded up to
+        // the next integer. Scales with the screen — readable on 4K cabinet
+        // PFs, compact on desktop/windowed.
+        let h_size = (ui.available_height() * 0.02).ceil();
+        // Horizontal row with vertical Align::Center — same height-0
+        // allocation as ui.horizontal (sized to content) but with center
+        // cross-axis alignment so buttons + smaller search field line up.
+        let hrow_w = ui.available_size_before_wrap().x;
+        ui.allocate_ui_with_layout(
+            egui::vec2(hrow_w, 0.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.label(
+                    egui::RichText::new(format!("PinReady v{}", env!("CARGO_PKG_VERSION")))
+                        .size(h_size)
+                        .strong(),
+                );
+                ui.add_space(16.0);
+                ui.label(egui::RichText::new("🔍").size(h_size));
+                // Search bar font is h_size - 2 so the box sits slightly smaller
+                // than the buttons without losing alignment on the row.
+                let search_font = (h_size - 2.0).max(1.0);
+                // Scoped visuals tweak — thicker + lighter bg_stroke so the
+                // search frame is visible on glossy / bright pincab playfields.
+                // Default inactive stroke is gray(60) which washes out; we force
+                // a brighter light-gray + 3px width on all widget states.
+                let search_resp = ui
+                    .scope(|ui| {
+                        let stroke = egui::Stroke::new(3.0, egui::Color32::from_gray(180));
+                        let v = ui.visuals_mut();
+                        v.widgets.inactive.bg_stroke = stroke;
+                        v.widgets.hovered.bg_stroke = stroke;
+                        v.widgets.active.bg_stroke = stroke;
+                        v.widgets.noninteractive.bg_stroke = stroke;
+                        v.widgets.open.bg_stroke = stroke;
                         ui.add(
-                            egui::ProgressBar::new(current as f32 / total as f32).text(t!(
-                                "update_progress",
-                                mb = mb,
-                                total = total_mb,
-                                pct = pct
-                            )),
-                        );
-                    } else {
-                        ui.spinner();
-                        ui.label(t!("update_extracting"));
-                    }
-                } else if let Some(release) = self.vpx_latest_release.clone() {
-                    let btn = ui.button(
-                        egui::RichText::new(t!("update_button", tag = release.tag.as_str()))
-                            .color(egui::Color32::from_rgb(100, 200, 100))
-                            .size(h_size),
-                    );
-                    if btn.clicked() {
-                        self.start_vpx_download(&release);
-                    }
+                            egui::TextEdit::singleline(&mut self.table_filter)
+                                .font(egui::FontId::proportional(search_font))
+                                .hint_text(
+                                    egui::RichText::new(
+                                        t!("launcher_search", count = self.tables.len())
+                                            .to_string(),
+                                    )
+                                    .size(search_font),
+                                )
+                                .desired_width(h_size * 9.0),
+                        )
+                    })
+                    .inner;
+                if search_resp.changed() {
+                    self.table_filter_lower = self.table_filter.to_lowercase();
                 }
-                if let Some(ref err) = self.update_error {
-                    ui.colored_label(
-                        egui::Color32::from_rgb(255, 100, 100),
-                        t!("update_error", msg = err.as_str()),
-                    );
-                }
-                // Rescan button with long-press detection and color feedback
-                // Track mouse button globally to avoid losing the press when cursor drifts
-                let primary_down = ui.input(|i| i.pointer.primary_down());
-                let held_secs = self
-                    .rescan_press_start
-                    .map(|s| s.elapsed().as_secs_f32())
-                    .unwrap_or(0.0);
-                let hold_ratio = (held_secs / 3.0).min(1.0);
-
-                // Button color: flash feedback after action, or hold progress
-                let btn_color = if let Some((flash_time, is_full)) = self.rescan_flash {
-                    let age = flash_time.elapsed().as_secs_f32();
-                    let alpha = ((1.0 - age / 1.0) * 255.0).clamp(0.0, 255.0) as u8;
-                    if alpha > 0 {
-                        ui.ctx().request_repaint();
-                        if is_full {
-                            Some(egui::Color32::from_rgba_unmultiplied(255, 80, 80, alpha))
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .button(egui::RichText::new(t!("launcher_quit")).size(h_size))
+                        .clicked()
+                    {
+                        self.quit_launcher(ui.ctx());
+                    }
+                    if ui
+                        .button(egui::RichText::new(t!("launcher_config")).size(h_size))
+                        .clicked()
+                    {
+                        self.mode = AppMode::Wizard;
+                    }
+                    // Update button — visible when a new release is available
+                    if self.update_downloading {
+                        let (current, total) = self.update_progress;
+                        if total > 0 {
+                            let pct = (current as f32 / total as f32 * 100.0) as u32;
+                            let mb = current / (1024 * 1024);
+                            let total_mb = total / (1024 * 1024);
+                            ui.add(
+                                egui::ProgressBar::new(current as f32 / total as f32).text(t!(
+                                    "update_progress",
+                                    mb = mb,
+                                    total = total_mb,
+                                    pct = pct
+                                )),
+                            );
                         } else {
-                            Some(egui::Color32::from_rgba_unmultiplied(80, 200, 80, alpha))
+                            ui.spinner();
+                            ui.label(t!("update_extracting"));
                         }
-                    } else {
-                        self.rescan_flash = None;
-                        None
+                    } else if let Some(release) = self.vpx_latest_release.clone() {
+                        let btn = ui.button(
+                            egui::RichText::new(t!("update_button", tag = release.tag.as_str()))
+                                .color(egui::Color32::from_rgb(100, 200, 100))
+                                .size(h_size),
+                        );
+                        if btn.clicked() {
+                            self.start_vpx_download(&release);
+                        }
                     }
-                } else if self.rescan_press_start.is_some() {
-                    // Gradient from green (quick rescan) to red (full reset) as hold progresses
-                    let r = (80.0 + hold_ratio * 175.0) as u8;
-                    let g = (200.0 - hold_ratio * 120.0) as u8;
-                    Some(egui::Color32::from_rgb(r, g, 80))
-                } else {
-                    None
-                };
+                    if let Some(ref err) = self.update_error {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(255, 100, 100),
+                            t!("update_error", msg = err.as_str()),
+                        );
+                    }
 
-                let label = if self.rescan_press_start.is_some() {
-                    let pct = (hold_ratio * 100.0) as u32;
-                    t!("launcher_reset_pct", pct = pct).to_string()
-                } else {
-                    t!("launcher_rescan").to_string()
-                };
+                    // PinReady self-update — button / progress / error
+                    if self.pinready_updating {
+                        let (current, total) = self.pinready_update_progress;
+                        if total > 0 {
+                            let pct = (current as f32 / total as f32 * 100.0) as u32;
+                            let mb = current / (1024 * 1024);
+                            let total_mb = total / (1024 * 1024);
+                            ui.add(
+                                egui::ProgressBar::new(current as f32 / total as f32).text(t!(
+                                    "pinready_update_progress",
+                                    mb = mb,
+                                    total = total_mb,
+                                    pct = pct
+                                )),
+                            );
+                        } else {
+                            ui.spinner();
+                            ui.label(t!("pinready_update_extracting"));
+                        }
+                    } else if let Some(release) = self.pinready_latest_release.clone() {
+                        let btn = ui.button(
+                            egui::RichText::new(t!(
+                                "pinready_update_button",
+                                tag = release.tag.as_str()
+                            ))
+                            .color(egui::Color32::from_rgb(100, 180, 220))
+                            .size(h_size),
+                        );
+                        if btn.clicked() {
+                            self.start_pinready_download(&release);
+                        }
+                    }
+                    if let Some(ref err) = self.pinready_update_error {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(255, 100, 100),
+                            t!("pinready_update_error", msg = err.as_str()),
+                        );
+                    }
 
-                let text = if let Some(color) = btn_color {
-                    egui::RichText::new(&label).color(color).size(h_size)
-                } else {
-                    egui::RichText::new(&label).size(h_size)
-                };
-                let rescan_btn = ui.button(text);
+                    // Rescan button with long-press detection and color feedback
+                    // Track mouse button globally to avoid losing the press when cursor drifts
+                    let primary_down = ui.input(|i| i.pointer.primary_down());
+                    let held_secs = self
+                        .rescan_press_start
+                        .map(|s| s.elapsed().as_secs_f32())
+                        .unwrap_or(0.0);
+                    let hold_ratio = (held_secs / 3.0).min(1.0);
 
-                if rescan_btn.is_pointer_button_down_on() && self.rescan_press_start.is_none() {
-                    // Mouse down on button: start tracking
-                    self.rescan_press_start = Some(std::time::Instant::now());
-                }
+                    // Button color: flash feedback after action, or hold progress
+                    let btn_color = if let Some((flash_time, is_full)) = self.rescan_flash {
+                        let age = flash_time.elapsed().as_secs_f32();
+                        let alpha = ((1.0 - age / 1.0) * 255.0).clamp(0.0, 255.0) as u8;
+                        if alpha > 0 {
+                            ui.ctx().request_repaint();
+                            if is_full {
+                                Some(egui::Color32::from_rgba_unmultiplied(255, 80, 80, alpha))
+                            } else {
+                                Some(egui::Color32::from_rgba_unmultiplied(80, 200, 80, alpha))
+                            }
+                        } else {
+                            self.rescan_flash = None;
+                            None
+                        }
+                    } else if self.rescan_press_start.is_some() {
+                        // Gradient from green (quick rescan) to red (full reset) as hold progresses
+                        let r = (80.0 + hold_ratio * 175.0) as u8;
+                        let g = (200.0 - hold_ratio * 120.0) as u8;
+                        Some(egui::Color32::from_rgb(r, g, 80))
+                    } else {
+                        None
+                    };
 
-                if self.rescan_press_start.is_some() {
-                    if primary_down {
-                        // Still holding — check if 3s reached
-                        if hold_ratio >= 1.0 {
-                            log::info!("Long press: full backglass regeneration");
-                            self.rescan_press_start = None;
-                            self.rescan_flash = Some((std::time::Instant::now(), true));
-                            let dir = std::path::Path::new(&self.tables_dir);
-                            if dir.is_dir() {
-                                for entry in walkdir::WalkDir::new(dir)
-                                    .max_depth(2)
-                                    .into_iter()
-                                    .flatten()
-                                {
-                                    let p = entry.path();
-                                    if p.file_name()
-                                        .and_then(|f| f.to_str())
-                                        .is_some_and(|f| f.starts_with(".pinready_bg_v"))
+                    let label = if self.rescan_press_start.is_some() {
+                        let pct = (hold_ratio * 100.0) as u32;
+                        t!("launcher_reset_pct", pct = pct).to_string()
+                    } else {
+                        t!("launcher_rescan").to_string()
+                    };
+
+                    let text = if let Some(color) = btn_color {
+                        egui::RichText::new(&label).color(color).size(h_size)
+                    } else {
+                        egui::RichText::new(&label).size(h_size)
+                    };
+                    let rescan_btn = ui.button(text);
+
+                    if rescan_btn.is_pointer_button_down_on() && self.rescan_press_start.is_none() {
+                        // Mouse down on button: start tracking
+                        self.rescan_press_start = Some(std::time::Instant::now());
+                    }
+
+                    if self.rescan_press_start.is_some() {
+                        if primary_down {
+                            // Still holding — check if 3s reached
+                            if hold_ratio >= 1.0 {
+                                log::info!("Long press: full backglass regeneration");
+                                self.rescan_press_start = None;
+                                self.rescan_flash = Some((std::time::Instant::now(), true));
+                                let dir = std::path::Path::new(&self.tables_dir);
+                                if dir.is_dir() {
+                                    for entry in walkdir::WalkDir::new(dir)
+                                        .max_depth(2)
+                                        .into_iter()
+                                        .flatten()
                                     {
-                                        let _ = std::fs::remove_file(p);
+                                        let p = entry.path();
+                                        if p.file_name()
+                                            .and_then(|f| f.to_str())
+                                            .is_some_and(|f| f.starts_with(".pinready_bg_v"))
+                                        {
+                                            let _ = std::fs::remove_file(p);
+                                        }
                                     }
                                 }
+                                self.scan_tables();
+                            } else {
+                                ui.ctx().request_repaint();
                             }
-                            self.scan_tables();
                         } else {
-                            ui.ctx().request_repaint();
+                            // Released before 3s: incremental rescan
+                            self.rescan_press_start = None;
+                            self.rescan_flash = Some((std::time::Instant::now(), false));
+                            self.scan_tables();
                         }
-                    } else {
-                        // Released before 3s: incremental rescan
-                        self.rescan_press_start = None;
-                        self.rescan_flash = Some((std::time::Instant::now(), false));
-                        self.scan_tables();
                     }
-                }
-            });
-        });
+                });
+            },
+        );
         ui.add_space(8.0);
 
         // VPX loading overlay — show spinner/progress but don't return, viewports need to render below
@@ -271,16 +356,6 @@ impl App {
                 self.vpx_error_log = None;
             }
         }
-
-        // Search filter
-        ui.horizontal(|ui| {
-            ui.label(t!("launcher_search").to_string());
-            if ui.text_edit_singleline(&mut self.table_filter).changed() {
-                self.table_filter_lower = self.table_filter.to_lowercase();
-            }
-            ui.label(t!("launcher_table_count", count = self.tables.len()).to_string());
-        });
-        ui.add_space(8.0);
 
         if self.tables.is_empty() {
             ui.label(t!("launcher_no_tables").to_string());
@@ -355,8 +430,12 @@ impl App {
             .wheel_scroll_multiplier(egui::vec2(1.0, wheel_boost));
 
         // Auto-scroll to selected table when navigating with joystick.
-        // Keep the selected row centered in the viewport; clamp at start/end so
-        // we don't scroll past the content.
+        // Keep the selected row centered in the viewport; clamp at start/end
+        // so we don't scroll past the content. Skip the scroll reset when the
+        // computed target_y hasn't changed (horizontal flipper inside a row,
+        // or row change that clamps to the same max_top on the last rows) —
+        // repeatedly calling vertical_scroll_offset with the same value
+        // causes visible reflow.
         if self.scroll_to_selected {
             self.scroll_to_selected = false;
             let selected_row = self.selected_table / cols;
@@ -367,7 +446,10 @@ impl App {
                 .saturating_sub(half)
                 .min(total_rows.saturating_sub(visible_rows));
             let target_y = top_row as f32 * row_height;
-            scroll_area = scroll_area.vertical_scroll_offset(target_y);
+            if self.last_scroll_target != Some(target_y) {
+                self.last_scroll_target = Some(target_y);
+                scroll_area = scroll_area.vertical_scroll_offset(target_y);
+            }
         }
 
         scroll_area.show(ui, |ui| {

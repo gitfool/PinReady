@@ -4,6 +4,7 @@
 page_screens = "اسکرینز"
 page_rendering = "رینڈرنگ"
 page_inputs = "ان پُٹ"
+page_outputs = "آؤٹ پُٹ"
 page_tilt = "ٹلٹ / نج"
 page_audio = "آڈیو"
 page_tables = "ٹیبلز"
@@ -194,6 +195,34 @@ input_custom2 = "حسب ضرورت #2 (ٹیبل موڈ)"
 input_custom3 = "حسب ضرورت #3 (ٹیبل موڈ)"
 input_custom4 = "حسب ضرورت #4 (ٹیبل موڈ)"
 
+# Outputs page
+outputs_heading = "آؤٹ پُٹ / DOF ترتیب"
+outputs_desc = "VPX 10.8.1 standalone libdof کو بنیادی طور پر مربوط کرتا ہے — کوئی بیرونی پلگ ان انسٹال کرنے کی ضرورت نہیں۔ آپ کو صرف ایک DOF ترتیب فراہم کرنی ہے جو آپ کے کیبنٹ کے ہارڈویئر (solenoids، LEDs، motors...) کو بیان کرتی ہے۔ اسے تیار کرنے کے لیے VPUniverse آن لائن جنریٹر کا استعمال کریں، پھر نتیجہ نیچے دیے گئے فولڈر میں نکالیں۔"
+outputs_workflow_title = "اپنی DOF ترتیب کیسے تیار کریں"
+outputs_step1_account = "VPUniverse ConfigTool پر ایک (مفت) اکاؤنٹ بنائیں۔"
+outputs_step2_table = "ٹول میں، اپنے کیبنٹ کے مطابق ایک نئی ٹیبل بنائیں۔"
+outputs_step3_output_system = "اس ٹیبل میں ایک آؤٹ پُٹ سسٹم شامل کریں (Pinscape، LedWiz، PinOne، DudesCab، PacLed، TeensyStripController…)۔"
+outputs_step4_devices = "آؤٹ پُٹس کے ساتھ اپنے آلات منسلک کریں: solenoids، flashers، GI لائٹنگ، RGB بٹن، WS2812 LED اسٹرپس، shaker، knocker، اشارہ لائٹ…"
+outputs_step5_generate = "Generate پر کلک کریں — ٹول directoutputconfig51.ini، DirectOutputShapes.xml، tablemappings.xml وغیرہ پر مشتمل ایک .zip تیار کرتا ہے۔"
+outputs_step6_extract = ".zip ڈاؤن لوڈ کریں اور اس کے مواد کو براہ راست نیچے دیے گئے ہدف فولڈر میں نکالیں (فائلیں directoutputconfig/ کے جڑ میں ہوں گی، ذیلی فولڈر میں نہیں)۔"
+outputs_devices_intro = "جو آلات منسلک کیے جا سکتے ہیں (مکمل فہرست نہیں):"
+outputs_device_solenoids = "Solenoids (flippers، bumpers، slings)"
+outputs_device_flashers = "Flashers"
+outputs_device_gi = "GI لائٹنگ"
+outputs_device_rgb_buttons = "RGB بٹن"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED اسٹرپس"
+outputs_device_shaker = "shaker (تھرتھراہٹ موٹر)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "اشارہ لائٹ / strobe"
+outputs_device_gear = "موٹر / پنکھا"
+outputs_generator_title = "آن لائن جنریٹر"
+outputs_generator_desc = "آپ کے ڈیفالٹ براؤزر میں VPUniverse ConfigTool کھولتا ہے۔"
+outputs_open_generator = "VPUniverse ConfigTool کھولیں"
+outputs_target_title = "اس مشین پر ہدف فولڈر"
+outputs_target_desc = "ConfigTool کی تیار کردہ .zip کو اس فولڈر میں نکالیں:"
+outputs_open_folder = "فائل مینیجر میں فولڈر کھولیں"
+outputs_folder_missing = "فولڈر ابھی موجود نہیں ہے — آپ کے کھولیں پر کلک کرنے پر بنایا جائے گا۔"
+
 # Tilt page
 tilt_heading = "ٹلٹ / نج حساسیت"
 tilt_desc = "آپ کے ایکسلرومیٹر (Pinscape / KL25Z) کی حساسیت سیٹنگز۔"
@@ -234,17 +263,59 @@ audio_ball_left_right = "گیند بائیں > دائیں"
 audio_bottom_left = "نیچے بائیں (SL)"
 audio_bottom_right = "نیچے دائیں (SR)"
 audio_wiring_note = "نوٹ: ساؤنڈ کارڈ کے مطابق جیک کے رنگ مختلف ہو سکتے ہیں!"
+audio_3jack_tip = "3 جیک والا ساؤنڈ کارڈ (سبز / گلابی / نیلا)؟ %{tool} کے ساتھ انہیں 5.1 یا 7.1 پر دوبارہ تفویض کریں۔"
+audio_3jack_tip_more_info = "تفصیلات"
 audio_wiring_col_output = "جیک آؤٹ پُٹ"
 audio_wiring_col_channel = "چینل"
 audio_wiring_col_connection = "Pincab کنکشن"
 audio_wiring_stereo_front = "سبز آؤٹ پٹ (Front) -> Backglass اسپیکرز (موسیقی)"
 audio_wiring_stereo_no_spatial = "Playfield: آواز انہی اسپیکرز سے آتی ہے، کوئی مقامی تقسیم نہیں"
+audio_wiring_51_front_top = "سبز آؤٹ پٹ  (Front L/R) -> اوپری Playfield ایکسائٹرز (backglass طرف)"
+audio_wiring_51_rear_bottom = "سیاہ آؤٹ پٹ  (Rear L/R)  -> نچلے Playfield ایکسائٹرز (lockbar/کھلاڑی طرف)"
+audio_wiring_51_center_sub = "نارنجی آؤٹ پٹ (Center/Sub) -> Subwoofer (اختیاری)"
+audio_wiring_51_bg_separate = "Backglass ایک علیحدہ آڈیو ڈیوائس پر"
+audio_wiring_51_front_bottom = "سبز آؤٹ پٹ  (Front L/R) -> نچلے Playfield ایکسائٹرز (lockbar/کھلاڑی طرف)"
+audio_wiring_51_rear_top = "سیاہ آؤٹ پٹ  (Rear L/R)  -> اوپری Playfield ایکسائٹرز (backglass طرف)"
+audio_wiring_71_green = "سبز (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass اسپیکرز (موسیقی) یا 2.1 سسٹم"
+audio_wiring_71_black = "سیاہ (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "اوپری Playfield ایکسائٹرز (backglass طرف)"
+audio_wiring_71_grey = "سرمئی (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "نچلے Playfield ایکسائٹرز (lockbar/کھلاڑی طرف)"
+audio_wiring_71_orange = "نارنجی (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (اختیاری)"
 
 # Tables page
 tables_heading = "ٹیبل ڈائریکٹری"
 tables_desc = "اپنی VPX ٹیبلز والی ڈائریکٹری منتخب کریں (فی ٹیبل ایک فولڈر)۔"
 tables_structure = "متوقع ترتیب (فولڈر فی ٹیبل Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- ٹیبل فائل (ضروری)
+    ├── Table Name.directb2s          <- backglass B2S (اختیاری)
+    ├── Table Name.ini                <- فی ٹیبل اوورائیڈ (اختیاری)
+    ├── Table Name.vbs                <- VBS patch / اسکرپٹ اوورائیڈ (اختیاری)
+    ├── altsound/<rom>/               <- altsound پیک (اختیاری)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (ROM ٹیبلز کے لیے ضروری)
+    │   └── nvram/<rom>.nv            <- محفوظ ڈیٹا (خودکار بنتا ہے)
+    ├── pupvideos/<rom>/              <- PinUp Player ویڈیوز (اختیاری)
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD رنگ کاری (اختیاری)
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD رنگ کاری (اختیاری)
+    └── medias/                       <- frontend میڈیا (اختیاری)"""
+tables_formats_supported = "ℹ معاون DMD رنگ کاری فارمیٹس: Serum (.crz) اور VNI (.vni + .pal)۔"
+tables_formats_unsupported = " => .pac جیسے اختصاصی فارمیٹس معاون نہیں ہیں۔"
 tables_modifiable = "تمام سیٹنگز F12 سے ان-گیم تبدیل کی جا سکتی ہیں۔"
+tables_tips_patch_desc = "کچھ ٹیبلز کو 10.8.1 standalone پر چلانے کے لیے VBS patch کی ضرورت ہوتی ہے۔"
+tables_tips_webp_desc = "آپ ٹیبلز کو ہلکا کرنے کے لیے بڑی PNG/BMP تصاویر کو WebP میں بھی بدل سکتے ہیں۔"
+tables_tips_info_here = "-> تفصیلات یہاں"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "راستہ:"
 tables_browse = "براؤز..."
 tables_folder_picker = "ٹیبل ڈائریکٹری منتخب کریں"

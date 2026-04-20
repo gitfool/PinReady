@@ -191,7 +191,8 @@ pub struct App {
     table_filter_lower: String, // cached lowercase version of table_filter
     selected_table: usize,
     scroll_to_selected: bool, // set by joystick navigation to trigger scroll
-    launcher_cols: usize,     // number of columns in the grid (computed in render)
+    last_scroll_target: Option<f32>, // last forced vertical scroll offset — skip reset when the target hasn't moved
+    launcher_cols: usize,            // number of columns in the grid (computed in render)
     images_preloaded: bool,
     // Kiosk mode: lock the cursor inside the PF window and center it on the grid.
     // Window placement itself is handled at creation via ViewportBuilder::with_monitor.
@@ -234,6 +235,14 @@ pub struct App {
     update_downloading: bool,
     update_progress: (u64, u64), // (current, total)
     update_error: Option<String>,
+
+    // PinReady self-update (separate from VPX update)
+    pinready_latest_release: Option<ReleaseInfo>,
+    pinready_update_check_rx: Option<crossbeam_channel::Receiver<anyhow::Result<ReleaseInfo>>>,
+    pinready_update_progress_rx: Option<crossbeam_channel::Receiver<UpdateProgress>>,
+    pinready_updating: bool,
+    pinready_update_progress: (u64, u64),
+    pinready_update_error: Option<String>,
 }
 
 impl App {
@@ -337,6 +346,7 @@ impl App {
             table_filter_lower: String::new(),
             selected_table: 0,
             scroll_to_selected: false,
+            last_scroll_target: None,
             launcher_cols: 1,
             images_preloaded: false,
             kiosk_cursor: false,
@@ -363,6 +373,12 @@ impl App {
             update_downloading: false,
             update_progress: (0, 0),
             update_error: None,
+            pinready_latest_release: None,
+            pinready_update_check_rx: Self::spawn_pinready_update_check(),
+            pinready_update_progress_rx: None,
+            pinready_updating: false,
+            pinready_update_progress: (0, 0),
+            pinready_update_error: None,
         };
         if !start_in_wizard {
             s.scan_tables();
@@ -542,6 +558,22 @@ impl App {
         Some(rx)
     }
 
+    /// Spawn a background thread that queries the PinReady repo for the
+    /// latest release and returns it via crossbeam channel.
+    fn spawn_pinready_update_check(
+    ) -> Option<crossbeam_channel::Receiver<anyhow::Result<ReleaseInfo>>> {
+        log::info!(
+            "Checking for PinReady updates from {}...",
+            updater::PINREADY_REPO
+        );
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        std::thread::spawn(move || {
+            let result = updater::check_pinready_release();
+            let _ = tx.send(result);
+        });
+        Some(rx)
+    }
+
     fn next_page(&mut self) {
         let next = self.page.index() + 1;
         if let Some(page) = WizardPage::from_index(next) {
@@ -711,9 +743,31 @@ impl eframe::App for App {
             if !self.kiosk_cursor_warped {
                 if let Some(inner) = ctx.input(|i| i.viewport().inner_rect) {
                     let size = inner.size();
+                    // Double warp: the fork only captures virtual_cursor_pos
+                    // on PointerMoved entering the window, and only if it is
+                    // not already captured. Since the cursor is typically
+                    // already captured at an off-center position from the
+                    // user's pre-launch mouse location, we need to force a
+                    // reset first.
+                    //
+                    // Step 1: move OS cursor outside the window → triggers
+                    // CursorLeft → fork sets cursor_captured=false,
+                    // virtual_cursor_pos=None.
+                    // Step 2: move OS cursor to the window center → triggers
+                    // CursorEntered + PointerMoved → fork captures at the
+                    // rotated center.
+                    // The fork multiplies pos by pixels_per_point before
+                    // sending to winit (PhysicalPosition). With zoom_factor
+                    // = 1.20 we must pre-divide so the cursor lands where
+                    // we expect in native pixel space.
+                    let ppp = ctx.pixels_per_point();
+                    let h_size = (size.x * 0.02).ceil();
                     ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(egui::pos2(
-                        size.x / 2.0,
-                        size.y / 2.0,
+                        -100.0, -100.0,
+                    )));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(egui::pos2(
+                        (size.x / 2.0) / ppp + h_size * ppp,
+                        (size.y / 2.0) / ppp,
                     )));
                     self.kiosk_cursor_warped = true;
                 }
@@ -850,6 +904,7 @@ impl eframe::App for App {
                                                       // download completes even when the user navigates away
                                                       // from the Screens page.
                         self.process_update_check();
+                        self.process_pinready_update_check(ui.ctx());
 
                         match self.page {
                             WizardPage::Screens => self.render_screens_page(ui),

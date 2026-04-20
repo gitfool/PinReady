@@ -4,6 +4,7 @@
 page_screens = "หน้าจอ"
 page_rendering = "การเรนเดอร์"
 page_inputs = "อินพุต"
+page_outputs = "เอาต์พุต"
 page_tilt = "เอียง / ผลัก"
 page_audio = "เสียง"
 page_tables = "โต๊ะ"
@@ -194,6 +195,34 @@ input_custom2 = "กำหนดเอง #2 (ม็อดโต๊ะ)"
 input_custom3 = "กำหนดเอง #3 (ม็อดโต๊ะ)"
 input_custom4 = "กำหนดเอง #4 (ม็อดโต๊ะ)"
 
+# Outputs page
+outputs_heading = "เอาต์พุต / การตั้งค่า DOF"
+outputs_desc = "VPX 10.8.1 standalone รวม libdof มาในตัว — ไม่ต้องติดตั้งปลั๊กอินภายนอก คุณเพียงต้องการไฟล์การตั้งค่า DOF ที่อธิบายฮาร์ดแวร์ของตู้ (โซเลนอยด์, LED, มอเตอร์...) ใช้เครื่องมือออนไลน์ VPUniverse เพื่อสร้างไฟล์ จากนั้นแตกไฟล์ผลลัพธ์ลงในโฟลเดอร์ด้านล่าง"
+outputs_workflow_title = "วิธีสร้างการตั้งค่า DOF ของคุณ"
+outputs_step1_account = "สร้างบัญชี (ฟรี) ที่ VPUniverse ConfigTool"
+outputs_step2_table = "ในเครื่องมือ สร้างโต๊ะใหม่ที่ตรงกับตู้ของคุณ"
+outputs_step3_output_system = "เพิ่มระบบเอาต์พุตให้กับโต๊ะนั้น (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)"
+outputs_step4_devices = "เชื่อมต่ออุปกรณ์ของคุณกับเอาต์พุต: โซเลนอยด์, flasher, ไฟ GI, ปุ่ม RGB, แถบ LED WS2812, shaker, knocker, ไฟสัญญาณ…"
+outputs_step5_generate = "คลิก Generate — เครื่องมือจะสร้างไฟล์ .zip ที่มี directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml เป็นต้น"
+outputs_step6_extract = "ดาวน์โหลดและแตกไฟล์ .zip ลงในโฟลเดอร์ปลายทางด้านล่างโดยตรง (ไฟล์อยู่ในรากของ directoutputconfig/ ไม่ใช่ในโฟลเดอร์ย่อย)"
+outputs_devices_intro = "อุปกรณ์ที่เชื่อมต่อได้ (ไม่ครบถ้วน):"
+outputs_device_solenoids = "โซเลนอยด์ (ฟลิปเปอร์, บัมเปอร์, สลิง)"
+outputs_device_flashers = "Flasher"
+outputs_device_gi = "ไฟ GI"
+outputs_device_rgb_buttons = "ปุ่ม RGB"
+outputs_device_rgb_strips = "แถบ LED RGB WS2811/WS2812"
+outputs_device_shaker = "shaker (มอเตอร์สั่น)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "ไฟสัญญาณ / สโตรบ"
+outputs_device_gear = "มอเตอร์ / พัดลม"
+outputs_generator_title = "เครื่องมือสร้างออนไลน์"
+outputs_generator_desc = "เปิด VPUniverse ConfigTool ในเบราว์เซอร์เริ่มต้นของคุณ"
+outputs_open_generator = "เปิด VPUniverse ConfigTool"
+outputs_target_title = "โฟลเดอร์ปลายทางบนเครื่องนี้"
+outputs_target_desc = "แตกไฟล์ .zip ที่สร้างโดย ConfigTool ลงในโฟลเดอร์นี้:"
+outputs_open_folder = "เปิดโฟลเดอร์ในตัวจัดการไฟล์"
+outputs_folder_missing = "โฟลเดอร์ยังไม่มีอยู่ — จะถูกสร้างขึ้นเมื่อคุณคลิกเปิด"
+
 # Tilt page
 tilt_heading = "ความไวเอียง / ผลัก"
 tilt_desc = "การตั้งค่าความไวสำหรับตัววัดความเร่ง (Pinscape / KL25Z)"
@@ -234,17 +263,59 @@ audio_ball_left_right = "ลูกบอล ซ้าย > ขวา"
 audio_bottom_left = "ล่างซ้าย (SL)"
 audio_bottom_right = "ล่างขวา (SR)"
 audio_wiring_note = "หมายเหตุ: สีแจ็คอาจแตกต่างกันขึ้นอยู่กับการ์ดเสียง!"
+audio_3jack_tip = "การ์ดเสียงแบบ 3 แจ็ค (เขียว / ชมพู / น้ำเงิน)? กำหนดใหม่เป็น 5.1 หรือ 7.1 ด้วย %{tool}"
+audio_3jack_tip_more_info = "รายละเอียด"
 audio_wiring_col_output = "เอาต์พุตแจ็ค"
 audio_wiring_col_channel = "ช่องสัญญาณ"
 audio_wiring_col_connection = "การเชื่อมต่อ Pincab"
 audio_wiring_stereo_front = "เอาต์พุตสีเขียว (Front) -> ลำโพง Backglass (เพลง)"
 audio_wiring_stereo_no_spatial = "Playfield: เสียงออกจากลำโพงชุดเดียวกัน ไม่มีการกระจายเชิงพื้นที่"
+audio_wiring_51_front_top = "เอาต์พุตสีเขียว  (Front L/R) -> exciter playfield ด้านบน (ฝั่ง backglass)"
+audio_wiring_51_rear_bottom = "เอาต์พุตสีดำ   (Rear L/R)  -> exciter playfield ด้านล่าง (ฝั่ง lockbar/ผู้เล่น)"
+audio_wiring_51_center_sub = "เอาต์พุตสีส้ม (Center/Sub) -> Subwoofer (ตัวเลือก)"
+audio_wiring_51_bg_separate = "Backglass บนอุปกรณ์เสียงแยก"
+audio_wiring_51_front_bottom = "เอาต์พุตสีเขียว  (Front L/R) -> exciter playfield ด้านล่าง (ฝั่ง lockbar/ผู้เล่น)"
+audio_wiring_51_rear_top = "เอาต์พุตสีดำ   (Rear L/R)  -> exciter playfield ด้านบน (ฝั่ง backglass)"
+audio_wiring_71_green = "เขียว (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "ลำโพง Backglass (เพลง) หรือระบบ 2.1"
+audio_wiring_71_black = "ดำ (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "exciter playfield ด้านบน (ฝั่ง backglass)"
+audio_wiring_71_grey = "เทา (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "exciter playfield ด้านล่าง (ฝั่ง lockbar/ผู้เล่น)"
+audio_wiring_71_orange = "ส้ม (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (ตัวเลือก)"
 
 # Tables page
 tables_heading = "ไดเรกทอรีโต๊ะ"
 tables_desc = "เลือกไดเรกทอรีที่มีโต๊ะ VPX ของคุณ (หนึ่งโฟลเดอร์ต่อโต๊ะ)"
 tables_structure = "โครงสร้างที่คาดหวัง (โฟลเดอร์ต่อโต๊ะ Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- ไฟล์โต๊ะ (ต้องมี)
+    ├── Table Name.directb2s          <- backglass B2S (ทางเลือก)
+    ├── Table Name.ini                <- การตั้งค่าเฉพาะโต๊ะ (ทางเลือก)
+    ├── Table Name.vbs                <- VBS patch / override สคริปต์ (ทางเลือก)
+    ├── altsound/<rom>/               <- ชุด altsound (ทางเลือก)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (ต้องมีสำหรับโต๊ะ ROM)
+    │   └── nvram/<rom>.nv            <- ข้อมูลบันทึก (สร้างอัตโนมัติ)
+    ├── pupvideos/<rom>/              <- วิดีโอ PinUp Player (ทางเลือก)
+    ├── serum/<rom>/<rom>.crz         <- การลงสี DMD Serum (ทางเลือก)
+    ├── vni/<rom>/<rom>.vni + .pal    <- การลงสี DMD VNI (ทางเลือก)
+    └── medias/                       <- สื่อ frontend (ทางเลือก)"""
+tables_formats_supported = "ℹ รูปแบบการลงสี DMD ที่รองรับ: Serum (.crz) และ VNI (.vni + .pal)"
+tables_formats_unsupported = " => รูปแบบเฉพาะเช่น .pac ไม่รองรับ"
 tables_modifiable = "การตั้งค่าทั้งหมดสามารถเปลี่ยนได้ในเกมผ่าน F12"
+tables_tips_patch_desc = "โต๊ะบางโต๊ะต้องการ VBS patch เพื่อใช้งานบน 10.8.1 standalone"
+tables_tips_webp_desc = "คุณยังสามารถแปลงภาพ PNG/BMP ขนาดใหญ่เป็น WebP เพื่อลดขนาดโต๊ะได้"
+tables_tips_info_here = "-> ข้อมูลที่นี่"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "เส้นทาง:"
 tables_browse = "เรียกดู..."
 tables_folder_picker = "เลือกไดเรกทอรีโต๊ะ"

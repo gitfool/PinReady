@@ -121,6 +121,30 @@ impl App {
                     });
                 ui.add_space(4.0);
                 ui.label(t!("audio_wiring_note"));
+
+                // 3-jack repurposing tip — OS-specific tool name + link to
+                // a dedicated README (details + screenshots).
+                #[cfg(target_os = "linux")]
+                let (tool, url) = (
+                    "hdajackretask",
+                    "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_linux",
+                );
+                #[cfg(target_os = "windows")]
+                let (tool, url) = (
+                    "Realtek HD Audio Manager",
+                    "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_windows",
+                );
+                #[cfg(target_os = "macos")]
+                let (tool, url) = (
+                    "Audio MIDI Setup",
+                    "https://github.com/Le-Syl21/PinReady/tree/main/audiomapping_mac",
+                );
+
+                ui.add_space(8.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(t!("audio_3jack_tip", tool = tool));
+                    ui.hyperlink_to(t!("audio_3jack_tip_more_info"), url);
+                });
             }
         }
 

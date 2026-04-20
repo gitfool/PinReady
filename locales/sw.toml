@@ -4,6 +4,7 @@
 page_screens = "Skrini"
 page_rendering = "Uonyeshaji"
 page_inputs = "Ingizo"
+page_outputs = "Mitoko"
 page_tilt = "Mwelekeo / Sukuma"
 page_audio = "Sauti"
 page_tables = "Meza"
@@ -194,6 +195,34 @@ input_custom2 = "Desturi #2 (modi ya meza)"
 input_custom3 = "Desturi #3 (modi ya meza)"
 input_custom4 = "Desturi #4 (modi ya meza)"
 
+# Outputs page
+outputs_heading = "Mitoko / Usanidi wa DOF"
+outputs_desc = "VPX 10.8.1 standalone inajumuisha libdof kwa asili — hakuna plagini ya nje inayohitaji kusakinishwa. Unahitaji tu kutoa usanidi wa DOF unaoelezea vifaa vya kabati lako (solenoids, LEDs, motors...). Tumia jenereta ya mtandao ya VPUniverse kuitengeneza, kisha toa matokeo kwenye folda iliyo hapo chini."
+outputs_workflow_title = "Jinsi ya kutengeneza usanidi wako wa DOF"
+outputs_step1_account = "Tengeneza akaunti (bure) kwenye VPUniverse ConfigTool."
+outputs_step2_table = "Katika zana, tengeneza meza mpya inayoendana na kabati lako."
+outputs_step3_output_system = "Ongeza mfumo wa mitoko kwenye meza hiyo (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Unganisha vifaa vyako kwenye mitoko: solenoids, flashers, mwanga wa GI, vitufe vya RGB, strips za WS2812 LED, shaker, knocker, mwanga wa onyo…"
+outputs_step5_generate = "Bofya Generate — zana hutengeneza .zip yenye directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml n.k."
+outputs_step6_extract = "Pakua na utoe yaliyomo ya .zip moja kwa moja kwenye folda lengwa hapo chini (faili huenda kwenye mzizi wa directoutputconfig/, si kwenye folda ndogo)."
+outputs_devices_intro = "Vifaa unavyoweza kuunganisha (orodha isiyo kamili):"
+outputs_device_solenoids = "Solenoids (flippers, bumpers, slings)"
+outputs_device_flashers = "Flashers"
+outputs_device_gi = "Mwanga wa GI"
+outputs_device_rgb_buttons = "Vitufe vya RGB"
+outputs_device_rgb_strips = "Strips za RGB LED WS2811/WS2812"
+outputs_device_shaker = "shaker (motor ya mtetemo)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Mwanga wa onyo / strobe"
+outputs_device_gear = "Motor / feni"
+outputs_generator_title = "Jenereta ya mtandao"
+outputs_generator_desc = "Hufungua VPUniverse ConfigTool kwenye kivinjari chako cha chaguo-msingi."
+outputs_open_generator = "Fungua VPUniverse ConfigTool"
+outputs_target_title = "Folda lengwa kwenye kompyuta hii"
+outputs_target_desc = "Toa .zip iliyotengenezwa na ConfigTool kwenye folda hii:"
+outputs_open_folder = "Fungua folda katika kidhibiti cha faili"
+outputs_folder_missing = "Folda bado haipo — itatengenezwa unapobofya Fungua."
+
 # Tilt page
 tilt_heading = "Usikivu wa Mwelekeo / Sukuma"
 tilt_desc = "Mipangilio ya usikivu wa kipima kasi chako (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Mpira Kushoto > Kulia"
 audio_bottom_left = "Chini Kushoto (SL)"
 audio_bottom_right = "Chini Kulia (SR)"
 audio_wiring_note = "Kumbuka: rangi za jack zinaweza kutofautiana kulingana na kadi ya sauti!"
+audio_3jack_tip = "Kadi ya sauti yenye jack 3 (kijani / waridi / bluu)? Peana tena kwa 5.1 au 7.1 kwa kutumia %{tool}."
+audio_3jack_tip_more_info = "maelezo"
 audio_wiring_col_output = "Pato la jack"
 audio_wiring_col_channel = "Njia"
 audio_wiring_col_connection = "Muunganisho wa Pincab"
 audio_wiring_stereo_front = "Toleo la kijani (Front) -> Spika za Backglass (muziki)"
 audio_wiring_stereo_no_spatial = "Playfield: sauti inatoka kwenye spika zile zile, bila mgawanyo wa anga"
+audio_wiring_51_front_top = "Pato la kijani  (Front L/R) -> Vichochezi vya juu vya Playfield (upande wa backglass)"
+audio_wiring_51_rear_bottom = "Pato jeusi    (Rear L/R)  -> Vichochezi vya chini vya Playfield (upande wa lockbar/mchezaji)"
+audio_wiring_51_center_sub = "Pato la chungwa (Center/Sub) -> Subwoofer (hiari)"
+audio_wiring_51_bg_separate = "Backglass kwenye kifaa cha sauti tofauti"
+audio_wiring_51_front_bottom = "Pato la kijani  (Front L/R) -> Vichochezi vya chini vya Playfield (upande wa lockbar/mchezaji)"
+audio_wiring_51_rear_top = "Pato jeusi    (Rear L/R)  -> Vichochezi vya juu vya Playfield (upande wa backglass)"
+audio_wiring_71_green = "Kijani (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Spika za Backglass (muziki) au mfumo wa 2.1"
+audio_wiring_71_black = "Nyeusi (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Vichochezi vya juu vya Playfield (upande wa backglass)"
+audio_wiring_71_grey = "Kijivu (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Vichochezi vya chini vya Playfield (upande wa lockbar/mchezaji)"
+audio_wiring_71_orange = "Chungwa (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (hiari)"
 
 # Tables page
 tables_heading = "Saraka ya meza"
 tables_desc = "Chagua saraka inayoshikilia meza zako za VPX (folda moja kwa kila meza)."
 tables_structure = "Mpangilio unaotarajiwa (folda-kwa-meza Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- faili ya meza (inahitajika)
+    ├── Table Name.directb2s          <- backglass B2S (hiari)
+    ├── Table Name.ini                <- ubatilishaji kwa meza (hiari)
+    ├── Table Name.vbs                <- VBS patch / ubatilishaji wa skripti (hiari)
+    ├── altsound/<rom>/               <- pakiti ya altsound (hiari)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (inahitajika kwa meza za ROM)
+    │   └── nvram/<rom>.nv            <- data ya kuhifadhi (hutengenezwa kiotomatiki)
+    ├── pupvideos/<rom>/              <- video za PinUp Player (hiari)
+    ├── serum/<rom>/<rom>.crz         <- upakaji rangi wa DMD Serum (hiari)
+    ├── vni/<rom>/<rom>.vni + .pal    <- upakaji rangi wa DMD VNI (hiari)
+    └── medias/                       <- vyombo vya habari vya frontend (hiari)"""
+tables_formats_supported = "ℹ Fomati za upakaji rangi wa DMD zinazoungwa mkono: Serum (.crz) na VNI (.vni + .pal)."
+tables_formats_unsupported = " => Fomati za umiliki kama .pac haziungwa mkono."
 tables_modifiable = "Mipangilio yote inaweza kubadilishwa ndani ya mchezo kupitia F12."
+tables_tips_patch_desc = "Baadhi ya meza zinahitaji VBS patch ili zifanye kazi kwenye 10.8.1 standalone."
+tables_tips_webp_desc = "Unaweza pia kubadilisha picha kubwa za PNG/BMP kuwa WebP ili kupunguza ukubwa wa meza."
+tables_tips_info_here = "-> maelezo hapa"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Njia:"
 tables_browse = "Vinjari..."
 tables_folder_picker = "Chagua saraka ya meza"

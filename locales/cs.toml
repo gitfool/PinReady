@@ -4,6 +4,7 @@
 page_screens = "Obrazovky"
 page_rendering = "Vykreslování"
 page_inputs = "Ovládání"
+page_outputs = "Výstupy"
 page_tilt = "Tilt / Nudge"
 page_audio = "Zvuk"
 page_tables = "Stoly"
@@ -194,6 +195,34 @@ input_custom2 = "Vlastní #2 (mod stolu)"
 input_custom3 = "Vlastní #3 (mod stolu)"
 input_custom4 = "Vlastní #4 (mod stolu)"
 
+# Outputs page
+outputs_heading = "Výstupy / Konfigurace DOF"
+outputs_desc = "VPX 10.8.1 standalone integruje libdof nativně — není třeba instalovat externí plugin. Stačí poskytnout konfiguraci DOF popisující hardware kabinetu (solenoidy, LED, motory...). Použijte online generátor VPUniverse k jejímu vytvoření a poté výsledek rozbalte do níže uvedené složky."
+outputs_workflow_title = "Jak vygenerovat vaši konfiguraci DOF"
+outputs_step1_account = "Vytvořte si (zdarma) účet na VPUniverse ConfigTool."
+outputs_step2_table = "V nástroji vytvořte nový stůl odpovídající vašemu kabinetu."
+outputs_step3_output_system = "Přidejte tomu stolu systém výstupů (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Připojte svá zařízení k výstupům: solenoidy, flashery, osvětlení GI, RGB tlačítka, LED pásky WS2812, shaker, knocker, maják…"
+outputs_step5_generate = "Klikněte na Generate — nástroj vytvoří .zip obsahující directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml atd."
+outputs_step6_extract = "Stáhněte a rozbalte obsah .zip přímo do cílové složky níže (soubory patří do kořene directoutputconfig/, nikoli do podsložky)."
+outputs_devices_intro = "Zařízení, která můžete připojit (neúplný seznam):"
+outputs_device_solenoids = "Solenoidy (flippery, bumpery, slingy)"
+outputs_device_flashers = "Flashery"
+outputs_device_gi = "Osvětlení GI"
+outputs_device_rgb_buttons = "RGB tlačítka"
+outputs_device_rgb_strips = "LED pásky WS2811/WS2812 RGB"
+outputs_device_shaker = "shaker (vibrační motor)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Maják / strobe"
+outputs_device_gear = "Motor / ventilátor"
+outputs_generator_title = "Online generátor"
+outputs_generator_desc = "Otevře VPUniverse ConfigTool ve výchozím prohlížeči."
+outputs_open_generator = "Otevřít VPUniverse ConfigTool"
+outputs_target_title = "Cílová složka na tomto počítači"
+outputs_target_desc = "Rozbalte .zip vygenerovaný nástrojem ConfigTool do této složky:"
+outputs_open_folder = "Otevřít složku ve správci souborů"
+outputs_folder_missing = "Složka ještě neexistuje — bude vytvořena po kliknutí na Otevřít."
+
 # Tilt page
 tilt_heading = "Citlivost Tilt / Nudge"
 tilt_desc = "Nastavení citlivosti akcelerometru (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Kulička vlevo > vpravo"
 audio_bottom_left = "Dole vlevo (SL)"
 audio_bottom_right = "Dole vpravo (SR)"
 audio_wiring_note = "Poznámka: barvy jacků se mohou lišit podle zvukové karty!"
+audio_3jack_tip = "Zvuková karta se 3 jacky (zelený / růžový / modrý)? Přemapujte je na 5.1 nebo 7.1 pomocí %{tool}."
+audio_3jack_tip_more_info = "detaily"
 audio_wiring_col_output = "Výstup jack"
 audio_wiring_col_channel = "Kanál"
 audio_wiring_col_connection = "Připojení Pincab"
 audio_wiring_stereo_front = "Zelený výstup (Front) -> reproduktory Backglass (hudba)"
 audio_wiring_stereo_no_spatial = "Playfield: zvuk vychází ze stejných reproduktorů, bez prostorového rozložení"
+audio_wiring_51_front_top = "Zelený výstup  (Front L/R) -> horní excitéry playfield (strana backglass)"
+audio_wiring_51_rear_bottom = "Černý výstup   (Rear L/R)  -> dolní excitéry playfield (strana lockbar/hráče)"
+audio_wiring_51_center_sub = "Oranžový výstup (Center/Sub) -> Subwoofer (volitelné)"
+audio_wiring_51_bg_separate = "Backglass na samostatném audio zařízení"
+audio_wiring_51_front_bottom = "Zelený výstup  (Front L/R) -> dolní excitéry playfield (strana lockbar/hráče)"
+audio_wiring_51_rear_top = "Černý výstup   (Rear L/R)  -> horní excitéry playfield (strana backglass)"
+audio_wiring_71_green = "Zelený (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Reproduktory Backglass (hudba) nebo 2.1 systém"
+audio_wiring_71_black = "Černý (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Horní excitéry playfield (strana backglass)"
+audio_wiring_71_grey = "Šedý (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Dolní excitéry playfield (strana lockbar/hráče)"
+audio_wiring_71_orange = "Oranžový (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (volitelné)"
 
 # Tables page
 tables_heading = "Adresář stolů"
 tables_desc = "Vyberte adresář obsahující vaše VPX stoly (jedna složka na stůl)."
 tables_structure = "Očekávaná struktura (složka na stůl, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- soubor stolu (povinný)
+    ├── Table Name.directb2s          <- backglass B2S (volitelný)
+    ├── Table Name.ini                <- přepisy pro stůl (volitelné)
+    ├── Table Name.vbs                <- patch VBS / přepis skriptu (volitelné)
+    ├── altsound/<rom>/               <- balíček altsound (volitelný)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (povinný pro ROM stoly)
+    │   └── nvram/<rom>.nv            <- data uložení (vytvořeno automaticky)
+    ├── pupvideos/<rom>/              <- videa PinUp Player (volitelné)
+    ├── serum/<rom>/<rom>.crz         <- kolorování DMD Serum (volitelné)
+    ├── vni/<rom>/<rom>.vni + .pal    <- kolorování DMD VNI (volitelné)
+    └── medias/                       <- frontendová média (volitelné)"""
+tables_formats_supported = "ℹ Podporované formáty kolorování DMD: Serum (.crz) a VNI (.vni + .pal)."
+tables_formats_unsupported = " => Proprietární formáty jako .pac nejsou podporovány."
 tables_modifiable = "Všechna nastavení lze změnit ve hře klávesou F12."
+tables_tips_patch_desc = "Některé stoly potřebují patch VBS, aby fungovaly na 10.8.1 standalone."
+tables_tips_webp_desc = "Můžete také převést velké obrázky PNG/BMP na WebP, abyste stoly odlehčili."
+tables_tips_info_here = "-> informace zde"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Cesta:"
 tables_browse = "Procházet..."
 tables_folder_picker = "Vybrat adresář stolů"

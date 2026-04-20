@@ -4,6 +4,7 @@
 page_screens = "Skärmar"
 page_rendering = "Rendering"
 page_inputs = "Inmatning"
+page_outputs = "Utgångar"
 page_tilt = "Tilt / Nudge"
 page_audio = "Ljud"
 page_tables = "Bord"
@@ -194,6 +195,34 @@ input_custom2 = "Anpassad #2 (bordmod)"
 input_custom3 = "Anpassad #3 (bordmod)"
 input_custom4 = "Anpassad #4 (bordmod)"
 
+# Outputs page
+outputs_heading = "Utgångar / DOF-konfiguration"
+outputs_desc = "VPX 10.8.1 standalone integrerar libdof internt — ingen extern insticksmodul behöver installeras. Du behöver bara tillhandahålla en DOF-konfiguration som beskriver kabinettets hårdvara (solenoider, LEDar, motorer...). Använd VPUniverse online-generator för att skapa den, och packa sedan upp resultatet i mappen nedan."
+outputs_workflow_title = "Så genererar du din DOF-konfiguration"
+outputs_step1_account = "Skapa ett (gratis) konto på VPUniverse ConfigTool."
+outputs_step2_table = "I verktyget, skapa ett nytt bord som matchar ditt kabinett."
+outputs_step3_output_system = "Lägg till ett utgångssystem till det bordet (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Koppla dina enheter till utgångarna: solenoider, flashers, GI-belysning, RGB-knappar, WS2812 LED-remsor, shaker, knocker, varningsljus…"
+outputs_step5_generate = "Klicka på Generate — verktyget skapar en .zip med directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml osv."
+outputs_step6_extract = "Ladda ner och packa upp .zip-filens innehåll direkt i målmappen nedan (filerna ska ligga i roten av directoutputconfig/, inte i en undermapp)."
+outputs_devices_intro = "Enheter du kan ansluta (ej uttömmande):"
+outputs_device_solenoids = "Solenoider (flippers, bumpers, slings)"
+outputs_device_flashers = "Flashers"
+outputs_device_gi = "GI-belysning"
+outputs_device_rgb_buttons = "RGB-knappar"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED-remsor"
+outputs_device_shaker = "shaker (vibrationsmotor)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Varningsljus / strobe"
+outputs_device_gear = "Motor / fläkt"
+outputs_generator_title = "Online-generator"
+outputs_generator_desc = "Öppnar VPUniverse ConfigTool i din standardwebbläsare."
+outputs_open_generator = "Öppna VPUniverse ConfigTool"
+outputs_target_title = "Målmapp på denna maskin"
+outputs_target_desc = "Packa upp .zip-filen som ConfigTool skapat i denna mapp:"
+outputs_open_folder = "Öppna mappen i filhanteraren"
+outputs_folder_missing = "Mappen finns inte ännu — den skapas när du klickar på Öppna."
+
 # Tilt page
 tilt_heading = "Tilt-/Nudge-känslighet"
 tilt_desc = "Känslighetsinställningar för din accelerometer (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Boll vänster > höger"
 audio_bottom_left = "Nere vänster (SL)"
 audio_bottom_right = "Nere höger (SR)"
 audio_wiring_note = "Obs: jackfärger kan variera beroende på ljudkort!"
+audio_3jack_tip = "Ljudkort med 3 jack (grön / rosa / blå)? Omfördela dem till 5.1 eller 7.1 med %{tool}."
+audio_3jack_tip_more_info = "detaljer"
 audio_wiring_col_output = "Jack-utgång"
 audio_wiring_col_channel = "Kanal"
 audio_wiring_col_connection = "Pincab-anslutning"
 audio_wiring_stereo_front = "Grön utgång (Front) -> Backglass-högtalare (musik)"
 audio_wiring_stereo_no_spatial = "Playfield: ljudet kommer från samma högtalare, ingen rumslig fördelning"
+audio_wiring_51_front_top = "Grön utgång  (Front L/R) -> Övre playfield-exciters (backglass-sidan)"
+audio_wiring_51_rear_bottom = "Svart utgång (Rear L/R)  -> Nedre playfield-exciters (lockbar/spelar-sidan)"
+audio_wiring_51_center_sub = "Orange utgång (Center/Sub) -> Subwoofer (valfri)"
+audio_wiring_51_bg_separate = "Backglass på en separat ljudenhet"
+audio_wiring_51_front_bottom = "Grön utgång  (Front L/R) -> Nedre playfield-exciters (lockbar/spelar-sidan)"
+audio_wiring_51_rear_top = "Svart utgång (Rear L/R)  -> Övre playfield-exciters (backglass-sidan)"
+audio_wiring_71_green = "Grön (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass-högtalare (musik) eller 2.1-system"
+audio_wiring_71_black = "Svart (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Övre playfield-exciters (backglass-sidan)"
+audio_wiring_71_grey = "Grå (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Nedre playfield-exciters (lockbar/spelar-sidan)"
+audio_wiring_71_orange = "Orange (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (valfri)"
 
 # Tables page
 tables_heading = "Bordkatalog"
 tables_desc = "Välj katalogen som innehåller dina VPX-bord (en mapp per bord)."
 tables_structure = "Förväntad struktur (mapp per bord, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- bordfil (obligatorisk)
+    ├── Table Name.directb2s          <- backglass B2S (valfri)
+    ├── Table Name.ini                <- bordspecifika överskrivningar (valfri)
+    ├── Table Name.vbs                <- VBS-patch / scriptöverskrivning (valfri)
+    ├── altsound/<rom>/               <- altsound-paket (valfri)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME-ROM (obligatorisk för ROM-bord)
+    │   └── nvram/<rom>.nv            <- sparad data (skapas automatiskt)
+    ├── pupvideos/<rom>/              <- PinUp Player-videor (valfri)
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD-färgläggning (valfri)
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD-färgläggning (valfri)
+    └── medias/                       <- frontend-media (valfri)"""
+tables_formats_supported = "ℹ DMD-färgläggningsformat som stöds: Serum (.crz) och VNI (.vni + .pal)."
+tables_formats_unsupported = " => Proprietära format som .pac stöds inte."
 tables_modifiable = "Alla inställningar kan ändras i spelet via F12."
+tables_tips_patch_desc = "Vissa bord behöver en VBS-patch för att fungera på 10.8.1 standalone."
+tables_tips_webp_desc = "Du kan även konvertera stora PNG/BMP-bilder till WebP för att banta ner bord."
+tables_tips_info_here = "-> info här"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Sökväg:"
 tables_browse = "Bläddra..."
 tables_folder_picker = "Välj bordkatalog"

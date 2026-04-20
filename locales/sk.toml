@@ -4,6 +4,7 @@
 page_screens = "Obrazovky"
 page_rendering = "Vykresľovanie"
 page_inputs = "Ovládanie"
+page_outputs = "Výstupy"
 page_tilt = "Tilt / Nudge"
 page_audio = "Zvuk"
 page_tables = "Stoly"
@@ -194,6 +195,34 @@ input_custom2 = "Vlastné #2 (mod stola)"
 input_custom3 = "Vlastné #3 (mod stola)"
 input_custom4 = "Vlastné #4 (mod stola)"
 
+# Outputs page
+outputs_heading = "Výstupy / Konfigurácia DOF"
+outputs_desc = "VPX 10.8.1 standalone integruje libdof natívne — netreba inštalovať externý plugin. Stačí poskytnúť konfiguráciu DOF opisujúcu hardvér kabinetu (solenoidy, LED, motory...). Použite online generátor VPUniverse na jej vytvorenie a potom výsledok rozbaľte do priečinka nižšie."
+outputs_workflow_title = "Ako vygenerovať vašu konfiguráciu DOF"
+outputs_step1_account = "Vytvorte si (bezplatný) účet na VPUniverse ConfigTool."
+outputs_step2_table = "V nástroji vytvorte nový stôl zodpovedajúci vášmu kabinetu."
+outputs_step3_output_system = "Pridajte tomuto stolu systém výstupov (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Pripojte svoje zariadenia k výstupom: solenoidy, flashery, osvetlenie GI, RGB tlačidlá, LED pásy WS2812, shaker, knocker, maják…"
+outputs_step5_generate = "Kliknite na Generate — nástroj vytvorí .zip obsahujúci directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml atď."
+outputs_step6_extract = "Stiahnite a rozbaľte obsah .zip priamo do cieľového priečinka nižšie (súbory patria do koreňa directoutputconfig/, nie do podpriečinka)."
+outputs_devices_intro = "Zariadenia, ktoré môžete pripojiť (neúplný zoznam):"
+outputs_device_solenoids = "Solenoidy (flippery, bumpery, slingy)"
+outputs_device_flashers = "Flashery"
+outputs_device_gi = "Osvetlenie GI"
+outputs_device_rgb_buttons = "RGB tlačidlá"
+outputs_device_rgb_strips = "LED pásy WS2811/WS2812 RGB"
+outputs_device_shaker = "shaker (vibračný motor)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Maják / strobe"
+outputs_device_gear = "Motor / ventilátor"
+outputs_generator_title = "Online generátor"
+outputs_generator_desc = "Otvorí VPUniverse ConfigTool v predvolenom prehliadači."
+outputs_open_generator = "Otvoriť VPUniverse ConfigTool"
+outputs_target_title = "Cieľový priečinok na tomto počítači"
+outputs_target_desc = "Rozbaľte .zip vygenerovaný nástrojom ConfigTool do tohto priečinka:"
+outputs_open_folder = "Otvoriť priečinok v správcovi súborov"
+outputs_folder_missing = "Priečinok zatiaľ neexistuje — bude vytvorený po kliknutí na Otvoriť."
+
 # Tilt page
 tilt_heading = "Citlivosť Tilt / Nudge"
 tilt_desc = "Nastavenia citlivosti akcelerometra (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Gulička vľavo > vpravo"
 audio_bottom_left = "Dole vľavo (SL)"
 audio_bottom_right = "Dole vpravo (SR)"
 audio_wiring_note = "Poznámka: farby jackov sa môžu líšiť podľa zvukovej karty!"
+audio_3jack_tip = "Zvuková karta s 3 jackmi (zelený / ružový / modrý)? Premapujte ich na 5.1 alebo 7.1 pomocou %{tool}."
+audio_3jack_tip_more_info = "detaily"
 audio_wiring_col_output = "Výstup jack"
 audio_wiring_col_channel = "Kanál"
 audio_wiring_col_connection = "Pripojenie Pincab"
 audio_wiring_stereo_front = "Zelený výstup (Front) -> reproduktory Backglass (hudba)"
 audio_wiring_stereo_no_spatial = "Playfield: zvuk vychádza z tých istých reproduktorov, bez priestorového rozloženia"
+audio_wiring_51_front_top = "Zelený výstup  (Front L/R) -> horné excitéry playfield (strana backglass)"
+audio_wiring_51_rear_bottom = "Čierny výstup  (Rear L/R)  -> dolné excitéry playfield (strana lockbar/hráča)"
+audio_wiring_51_center_sub = "Oranžový výstup (Center/Sub) -> Subwoofer (voliteľné)"
+audio_wiring_51_bg_separate = "Backglass na samostatnom audio zariadení"
+audio_wiring_51_front_bottom = "Zelený výstup  (Front L/R) -> dolné excitéry playfield (strana lockbar/hráča)"
+audio_wiring_51_rear_top = "Čierny výstup  (Rear L/R)  -> horné excitéry playfield (strana backglass)"
+audio_wiring_71_green = "Zelený (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Reproduktory Backglass (hudba) alebo 2.1 systém"
+audio_wiring_71_black = "Čierny (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Horné excitéry playfield (strana backglass)"
+audio_wiring_71_grey = "Sivý (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Dolné excitéry playfield (strana lockbar/hráča)"
+audio_wiring_71_orange = "Oranžový (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (voliteľné)"
 
 # Tables page
 tables_heading = "Adresár stolov"
 tables_desc = "Vyberte adresár obsahujúci vaše VPX stoly (jeden priečinok na stôl)."
 tables_structure = "Očakávaná štruktúra (priečinok na stôl, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- súbor stola (povinný)
+    ├── Table Name.directb2s          <- backglass B2S (voliteľný)
+    ├── Table Name.ini                <- prepisy pre stôl (voliteľné)
+    ├── Table Name.vbs                <- patch VBS / prepis skriptu (voliteľné)
+    ├── altsound/<rom>/               <- balíček altsound (voliteľný)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (povinný pre ROM stoly)
+    │   └── nvram/<rom>.nv            <- dáta uloženia (automaticky vytvorené)
+    ├── pupvideos/<rom>/              <- videá PinUp Player (voliteľné)
+    ├── serum/<rom>/<rom>.crz         <- kolorovanie DMD Serum (voliteľné)
+    ├── vni/<rom>/<rom>.vni + .pal    <- kolorovanie DMD VNI (voliteľné)
+    └── medias/                       <- frontendové médiá (voliteľné)"""
+tables_formats_supported = "ℹ Podporované formáty kolorovania DMD: Serum (.crz) a VNI (.vni + .pal)."
+tables_formats_unsupported = " => Proprietárne formáty ako .pac nie sú podporované."
 tables_modifiable = "Všetky nastavenia je možné zmeniť v hre klávesom F12."
+tables_tips_patch_desc = "Niektoré stoly potrebujú patch VBS, aby fungovali na 10.8.1 standalone."
+tables_tips_webp_desc = "Môžete tiež skonvertovať veľké obrázky PNG/BMP na WebP, aby ste stoly odľahčili."
+tables_tips_info_here = "-> informácie tu"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Cesta:"
 tables_browse = "Prehľadávať..."
 tables_folder_picker = "Vybrať adresár stolov"

@@ -4,6 +4,7 @@
 page_screens = "Layar"
 page_rendering = "Rendering"
 page_inputs = "Input"
+page_outputs = "Output"
 page_tilt = "Tilt / Nudge"
 page_audio = "Audio"
 page_tables = "Meja"
@@ -194,6 +195,34 @@ input_custom2 = "Kustom #2 (mod meja)"
 input_custom3 = "Kustom #3 (mod meja)"
 input_custom4 = "Kustom #4 (mod meja)"
 
+# Outputs page
+outputs_heading = "Output / Konfigurasi DOF"
+outputs_desc = "VPX 10.8.1 standalone mengintegrasikan libdof secara native — tidak perlu plugin eksternal yang diinstal. Anda hanya perlu menyediakan konfigurasi DOF yang menjelaskan perangkat keras kabinet (solenoid, LED, motor...). Gunakan generator online VPUniverse untuk menghasilkannya, lalu ekstrak hasilnya ke folder di bawah."
+outputs_workflow_title = "Cara membuat konfigurasi DOF"
+outputs_step1_account = "Buat akun (gratis) di VPUniverse ConfigTool."
+outputs_step2_table = "Di alat, buat meja baru yang sesuai dengan kabinet Anda."
+outputs_step3_output_system = "Tambahkan sistem output ke meja itu (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Pasangkan perangkat Anda ke output: solenoid, flasher, pencahayaan GI, tombol RGB, strip LED WS2812, shaker, knocker, beacon…"
+outputs_step5_generate = "Klik Generate — alat akan menghasilkan .zip berisi directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml, dll."
+outputs_step6_extract = "Unduh dan ekstrak konten .zip langsung ke folder tujuan di bawah (file berada di root directoutputconfig/, bukan di subfolder)."
+outputs_devices_intro = "Perangkat yang dapat dihubungkan (tidak menyeluruh):"
+outputs_device_solenoids = "Solenoid (flipper, bumper, sling)"
+outputs_device_flashers = "Flasher"
+outputs_device_gi = "Pencahayaan GI"
+outputs_device_rgb_buttons = "Tombol RGB"
+outputs_device_rgb_strips = "Strip LED RGB WS2811/WS2812"
+outputs_device_shaker = "shaker (motor getar)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Beacon / strobe"
+outputs_device_gear = "Motor / kipas"
+outputs_generator_title = "Generator online"
+outputs_generator_desc = "Membuka VPUniverse ConfigTool di browser default Anda."
+outputs_open_generator = "Buka VPUniverse ConfigTool"
+outputs_target_title = "Folder tujuan di mesin ini"
+outputs_target_desc = "Ekstrak .zip yang dibuat oleh ConfigTool ke folder ini:"
+outputs_open_folder = "Buka folder di manajer file"
+outputs_folder_missing = "Folder belum ada — akan dibuat saat Anda klik Buka."
+
 # Tilt page
 tilt_heading = "Sensitivitas Tilt / Nudge"
 tilt_desc = "Pengaturan sensitivitas untuk akselerometer Anda (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Bola Kiri > Kanan"
 audio_bottom_left = "Kiri Bawah (SL)"
 audio_bottom_right = "Kanan Bawah (SR)"
 audio_wiring_note = "Catatan: warna jack mungkin berbeda tergantung kartu suara!"
+audio_3jack_tip = "Kartu suara dengan 3 jack (hijau / merah muda / biru)? Tetapkan ulang ke 5.1 atau 7.1 dengan %{tool}."
+audio_3jack_tip_more_info = "detail"
 audio_wiring_col_output = "Output jack"
 audio_wiring_col_channel = "Kanal"
 audio_wiring_col_connection = "Koneksi Pincab"
 audio_wiring_stereo_front = "Output hijau (Front) -> Speaker Backglass (musik)"
 audio_wiring_stereo_no_spatial = "Playfield: suara keluar dari speaker yang sama, tanpa spasialisasi"
+audio_wiring_51_front_top = "Output hijau  (Front L/R) -> Exciter playfield atas (sisi backglass)"
+audio_wiring_51_rear_bottom = "Output hitam  (Rear L/R)  -> Exciter playfield bawah (sisi lockbar/pemain)"
+audio_wiring_51_center_sub = "Output oranye (Center/Sub) -> Subwoofer (opsional)"
+audio_wiring_51_bg_separate = "Backglass pada perangkat audio terpisah"
+audio_wiring_51_front_bottom = "Output hijau  (Front L/R) -> Exciter playfield bawah (sisi lockbar/pemain)"
+audio_wiring_51_rear_top = "Output hitam  (Rear L/R)  -> Exciter playfield atas (sisi backglass)"
+audio_wiring_71_green = "Hijau (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Speaker Backglass (musik) atau sistem 2.1"
+audio_wiring_71_black = "Hitam (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Exciter playfield atas (sisi backglass)"
+audio_wiring_71_grey = "Abu-abu (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Exciter playfield bawah (sisi lockbar/pemain)"
+audio_wiring_71_orange = "Oranye (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (opsional)"
 
 # Tables page
 tables_heading = "Direktori meja"
 tables_desc = "Pilih direktori yang berisi meja VPX Anda (satu folder per meja)."
 tables_structure = "Tata letak yang diharapkan (folder-per-meja Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- file meja (wajib)
+    ├── Table Name.directb2s          <- backglass B2S (opsional)
+    ├── Table Name.ini                <- override per meja (opsional)
+    ├── Table Name.vbs                <- patch VBS / override skrip (opsional)
+    ├── altsound/<rom>/               <- paket altsound (opsional)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (wajib untuk meja ROM)
+    │   └── nvram/<rom>.nv            <- data simpanan (dibuat otomatis)
+    ├── pupvideos/<rom>/              <- video PinUp Player (opsional)
+    ├── serum/<rom>/<rom>.crz         <- pewarnaan DMD Serum (opsional)
+    ├── vni/<rom>/<rom>.vni + .pal    <- pewarnaan DMD VNI (opsional)
+    └── medias/                       <- media frontend (opsional)"""
+tables_formats_supported = "ℹ Format pewarnaan DMD yang didukung: Serum (.crz) dan VNI (.vni + .pal)."
+tables_formats_unsupported = " => Format proprietari seperti .pac tidak didukung."
 tables_modifiable = "Semua pengaturan dapat diubah dalam game melalui F12."
+tables_tips_patch_desc = "Beberapa meja memerlukan patch VBS untuk berjalan di 10.8.1 standalone."
+tables_tips_webp_desc = "Anda juga dapat mengonversi gambar PNG/BMP besar ke WebP untuk meringankan meja."
+tables_tips_info_here = "-> info di sini"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Path:"
 tables_browse = "Jelajahi..."
 tables_folder_picker = "Pilih direktori meja"

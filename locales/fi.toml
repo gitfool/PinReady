@@ -4,6 +4,7 @@
 page_screens = "Näytöt"
 page_rendering = "Renderöinti"
 page_inputs = "Ohjaimet"
+page_outputs = "Lähdöt"
 page_tilt = "Tilt / Nudge"
 page_audio = "Ääni"
 page_tables = "Pöydät"
@@ -194,6 +195,34 @@ input_custom2 = "Mukautettu #2 (pöytämodi)"
 input_custom3 = "Mukautettu #3 (pöytämodi)"
 input_custom4 = "Mukautettu #4 (pöytämodi)"
 
+# Outputs page
+outputs_heading = "Lähdöt / DOF-asetukset"
+outputs_desc = "VPX 10.8.1 standalone integroi libdofin natiivisti — ulkoista liitännäistä ei tarvitse asentaa. Sinun täytyy vain tarjota DOF-asetukset, jotka kuvaavat kabinetin laitteiston (solenoidit, LED-valot, moottorit...). Käytä VPUniversen verkkogeneraattoria sen tuottamiseen ja pura tulos alla olevaan kansioon."
+outputs_workflow_title = "Kuinka luoda DOF-asetukset"
+outputs_step1_account = "Luo (ilmainen) tili VPUniverse ConfigToolissa."
+outputs_step2_table = "Luo työkalussa uusi pöytä, joka vastaa kabinettiasi."
+outputs_step3_output_system = "Lisää tähän pöytään lähtöjärjestelmä (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Yhdistä laitteesi lähtöihin: solenoidit, flasherit, GI-valaistus, RGB-painikkeet, WS2812 LED-nauhat, shaker, knocker, majakka…"
+outputs_step5_generate = "Napsauta Generate — työkalu tuottaa .zip-tiedoston, joka sisältää directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml jne."
+outputs_step6_extract = "Lataa ja pura .zip:n sisältö suoraan alla olevaan kohdekansioon (tiedostot kuuluvat directoutputconfig/:n juureen, ei alikansioon)."
+outputs_devices_intro = "Laitteet, joita voit liittää (ei täysi lista):"
+outputs_device_solenoids = "Solenoidit (flipperit, bumperit, slingit)"
+outputs_device_flashers = "Flasherit"
+outputs_device_gi = "GI-valaistus"
+outputs_device_rgb_buttons = "RGB-painikkeet"
+outputs_device_rgb_strips = "WS2811/WS2812 RGB LED-nauhat"
+outputs_device_shaker = "shaker (tärinämoottori)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Majakka / strobe"
+outputs_device_gear = "Moottori / tuuletin"
+outputs_generator_title = "Verkkogeneraattori"
+outputs_generator_desc = "Avaa VPUniverse ConfigToolin oletusselaimessasi."
+outputs_open_generator = "Avaa VPUniverse ConfigTool"
+outputs_target_title = "Kohdekansio tällä koneella"
+outputs_target_desc = "Pura ConfigToolin tuottama .zip tähän kansioon:"
+outputs_open_folder = "Avaa kansio tiedostonhallinnassa"
+outputs_folder_missing = "Kansiota ei ole vielä olemassa — se luodaan kun napsautat Avaa."
+
 # Tilt page
 tilt_heading = "Tilt-/Nudge-herkkyys"
 tilt_desc = "Herkkyyasasetukset kiihtyvyysanturille (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Pallo vasen > oikea"
 audio_bottom_left = "Ala vasen (SL)"
 audio_bottom_right = "Ala oikea (SR)"
 audio_wiring_note = "Huom: jack-värit voivat vaihdella äänikortin mukaan!"
+audio_3jack_tip = "3-jackin äänikortti (vihreä / vaaleanpunainen / sininen)? Määritä ne uudelleen 5.1- tai 7.1-tilaan käyttäen %{tool}."
+audio_3jack_tip_more_info = "lisätiedot"
 audio_wiring_col_output = "Jack-lähtö"
 audio_wiring_col_channel = "Kanava"
 audio_wiring_col_connection = "Pincab-liitäntä"
 audio_wiring_stereo_front = "Vihreä ulostulo (Front) -> Backglass-kaiuttimet (musiikki)"
 audio_wiring_stereo_no_spatial = "Playfield: ääni tulee samoista kaiuttimista, ei spatialisointia"
+audio_wiring_51_front_top = "Vihreä lähtö  (Front L/R) -> Playfield-yläherättimet (backglass-puoli)"
+audio_wiring_51_rear_bottom = "Musta lähtö   (Rear L/R)  -> Playfield-alaherättimet (lockbar/pelaaja-puoli)"
+audio_wiring_51_center_sub = "Oranssi lähtö (Center/Sub) -> Subwoofer (valinnainen)"
+audio_wiring_51_bg_separate = "Backglass erillisessä äänilaitteessa"
+audio_wiring_51_front_bottom = "Vihreä lähtö  (Front L/R) -> Playfield-alaherättimet (lockbar/pelaaja-puoli)"
+audio_wiring_51_rear_top = "Musta lähtö   (Rear L/R)  -> Playfield-yläherättimet (backglass-puoli)"
+audio_wiring_71_green = "Vihreä (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Backglass-kaiuttimet (musiikki) tai 2.1-järjestelmä"
+audio_wiring_71_black = "Musta (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Playfield-yläherättimet (backglass-puoli)"
+audio_wiring_71_grey = "Harmaa (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Playfield-alaherättimet (lockbar/pelaaja-puoli)"
+audio_wiring_71_orange = "Oranssi (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (valinnainen)"
 
 # Tables page
 tables_heading = "Pöytähakemisto"
 tables_desc = "Valitse VPX-pöytiesi hakemisto (yksi kansio per pöytä)."
 tables_structure = "Odotettu rakenne (kansio per pöytä, Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- pöytätiedosto (pakollinen)
+    ├── Table Name.directb2s          <- backglass B2S (valinnainen)
+    ├── Table Name.ini                <- pöytäkohtaiset asetukset (valinnainen)
+    ├── Table Name.vbs                <- VBS-paikka / skriptin ohitus (valinnainen)
+    ├── altsound/<rom>/               <- altsound-paketti (valinnainen)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (pakollinen ROM-pöydille)
+    │   └── nvram/<rom>.nv            <- tallennustiedot (luodaan automaattisesti)
+    ├── pupvideos/<rom>/              <- PinUp Player -videot (valinnainen)
+    ├── serum/<rom>/<rom>.crz         <- Serum DMD -värjäys (valinnainen)
+    ├── vni/<rom>/<rom>.vni + .pal    <- VNI DMD -värjäys (valinnainen)
+    └── medias/                       <- frontend-media (valinnainen)"""
+tables_formats_supported = "ℹ Tuetut DMD-värjäysmuodot: Serum (.crz) ja VNI (.vni + .pal)."
+tables_formats_unsupported = " => Omistusoikeudellisia muotoja kuten .pac ei tueta."
 tables_modifiable = "Kaikki asetukset voidaan muuttaa pelissä F12-näppäimellä."
+tables_tips_patch_desc = "Jotkut pöydät tarvitsevat VBS-paikan toimiakseen 10.8.1 standalonessa."
+tables_tips_webp_desc = "Voit myös muuntaa suuret PNG/BMP-kuvat WebP-muotoon pöytien keventämiseksi."
+tables_tips_info_here = "-> lisätietoja tästä"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Polku:"
 tables_browse = "Selaa..."
 tables_folder_picker = "Valitse pöytähakemisto"

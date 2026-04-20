@@ -487,6 +487,224 @@ pub fn query_vpx_version(exe_path: &str) -> Option<String> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// PinReady self-update
+// ---------------------------------------------------------------------------
+
+/// GitHub repository where PinReady releases live.
+pub const PINREADY_REPO: &str = "Le-Syl21/PinReady";
+
+/// Compile-time PinReady version (matches Cargo.toml, no `v` prefix).
+pub const CURRENT_PINREADY_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Expected release asset name for this platform.
+///
+/// Mirrors CI's artifact naming:
+///   pinready-linux-x86_64.tar.gz
+///   pinready-linux-aarch64.tar.gz
+///   pinready-macos-aarch64.tar.gz
+///   pinready-macos-x86_64.tar.gz
+///   pinready-windows-x86_64.zip
+fn pinready_asset_name() -> String {
+    let os = if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "unknown"
+    };
+    let arch = if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "unknown"
+    };
+    let ext = if cfg!(target_os = "windows") {
+        "zip"
+    } else {
+        "tar.gz"
+    };
+    format!("pinready-{os}-{arch}.{ext}")
+}
+
+/// Internal binary name inside the release archive.
+fn pinready_binary_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "pinready.exe"
+    } else {
+        "pinready"
+    }
+}
+
+/// Query the PinReady repository for the latest release + matching asset.
+pub fn check_pinready_release() -> Result<ReleaseInfo> {
+    let url = format!("https://api.github.com/repos/{PINREADY_REPO}/releases?per_page=1");
+
+    let response = ureq::get(&url)
+        .header("User-Agent", "PinReady")
+        .header("Accept", "application/vnd.github.v3+json")
+        .call()
+        .context("Failed to query GitHub releases")?;
+
+    let body = response.into_body().read_to_string()?;
+    let releases: serde_json::Value =
+        serde_json::from_str(&body).context("Failed to parse GitHub release JSON")?;
+
+    let json = releases
+        .as_array()
+        .and_then(|arr| arr.first())
+        .context("No PinReady releases found")?;
+
+    let tag = json["tag_name"]
+        .as_str()
+        .context("Missing tag_name in release")?
+        .to_string();
+
+    let target = pinready_asset_name();
+    let assets = json["assets"]
+        .as_array()
+        .context("Missing assets in release")?;
+
+    for asset in assets {
+        let name = asset["name"].as_str().unwrap_or_default();
+        if name == target {
+            let url = asset["browser_download_url"]
+                .as_str()
+                .context("Missing download URL")?
+                .to_string();
+            let size = asset["size"].as_u64().unwrap_or(0);
+            return Ok(ReleaseInfo {
+                tag,
+                asset_name: name.to_string(),
+                asset_url: url,
+                asset_size: size,
+            });
+        }
+    }
+
+    bail!(
+        "No PinReady asset named {target}. Available: {}",
+        assets
+            .iter()
+            .filter_map(|a| a["name"].as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+/// Returns true if the remote release tag differs from the running version.
+/// Tag format on releases is `v0.6.2`; `CURRENT_PINREADY_VERSION` has no `v` prefix.
+pub fn is_pinready_update_available(release: &ReleaseInfo) -> bool {
+    release.tag.trim_start_matches('v') != CURRENT_PINREADY_VERSION
+}
+
+/// Download the PinReady release, extract the binary, swap the running
+/// executable via `self_replace`, and spawn a fresh instance. The caller
+/// must `std::process::exit(0)` immediately after this returns Ok(()).
+pub fn download_pinready_and_replace(
+    release: &ReleaseInfo,
+    progress_tx: Sender<UpdateProgress>,
+) -> Result<()> {
+    let tmp_dir = std::env::temp_dir();
+    let archive_path = tmp_dir.join(&release.asset_name);
+    let new_binary_path = tmp_dir.join(format!("pinready_new_{}", std::process::id()));
+
+    // Download
+    let response = ureq::get(&release.asset_url)
+        .header("User-Agent", "PinReady")
+        .header("Accept", "application/octet-stream")
+        .call()
+        .context("Failed to download PinReady release")?;
+
+    let total = release.asset_size;
+    let mut downloaded: u64 = 0;
+    let mut file = std::fs::File::create(&archive_path)?;
+    let mut buf = [0u8; 32768];
+    let mut reader = response.into_body().into_reader();
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        std::io::Write::write_all(&mut file, &buf[..n])?;
+        downloaded += n as u64;
+        let _ = progress_tx.send(UpdateProgress::Downloading(downloaded, total));
+    }
+    drop(file);
+
+    let _ = progress_tx.send(UpdateProgress::Extracting);
+
+    // Extract binary to a known temp path
+    extract_pinready_binary(&archive_path, &new_binary_path, pinready_binary_name())?;
+
+    // Make executable on unix
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&new_binary_path, std::fs::Permissions::from_mode(0o755))?;
+    }
+
+    // Swap the running binary. self_replace handles the Windows rename-trick
+    // and atomic rename on unix.
+    self_replace::self_replace(&new_binary_path)
+        .context("Failed to swap the running PinReady binary")?;
+
+    // Spawn a fresh instance using the *new* binary (now at current_exe()).
+    // The caller is expected to exit(0) so this new process becomes the user-facing one.
+    let exe = std::env::current_exe().context("Failed to resolve current exe")?;
+    std::process::Command::new(exe)
+        .spawn()
+        .context("Failed to relaunch PinReady")?;
+
+    // Cleanup temp files (best effort — don't fail the update if cleanup fails)
+    let _ = std::fs::remove_file(&archive_path);
+    let _ = std::fs::remove_file(&new_binary_path);
+
+    let _ = progress_tx.send(UpdateProgress::Done(std::path::PathBuf::new()));
+    Ok(())
+}
+
+fn extract_pinready_binary(archive: &Path, dest: &Path, binary_name: &str) -> Result<()> {
+    let ext = archive.extension().and_then(|s| s.to_str()).unwrap_or("");
+    if ext == "zip" {
+        let file = std::fs::File::open(archive)?;
+        let mut zip = zip::ZipArchive::new(file)?;
+        for i in 0..zip.len() {
+            let mut entry = zip.by_index(i)?;
+            // Match by the trailing component so we tolerate archives with a
+            // top-level directory.
+            let name = entry.name().to_string();
+            if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
+                let mut out = std::fs::File::create(dest)?;
+                std::io::copy(&mut entry, &mut out)?;
+                return Ok(());
+            }
+        }
+    } else {
+        // Assume tar.gz
+        let file = std::fs::File::open(archive)?;
+        let gz = flate2::read::GzDecoder::new(file);
+        let mut tar = tar::Archive::new(gz);
+        for entry in tar.entries()? {
+            let mut entry = entry?;
+            let path = entry.path()?.to_path_buf();
+            let matches = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .is_some_and(|n| n == binary_name);
+            if matches {
+                let mut out = std::fs::File::create(dest)?;
+                std::io::copy(&mut entry, &mut out)?;
+                return Ok(());
+            }
+        }
+    }
+    bail!("Binary {binary_name} not found in {}", archive.display())
+}
+
 #[cfg(test)]
 mod version_tests {
     use super::*;

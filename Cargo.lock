@@ -3463,7 +3463,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "pinready"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "base64",
@@ -3485,6 +3485,7 @@ dependencies = [
  "rusqlite",
  "rust-i18n",
  "sdl3-sys",
+ "self-replace",
  "serde",
  "serde_json",
  "symphonia",
@@ -4218,6 +4219,17 @@ dependencies = [
  "cmake",
  "rpkg-config",
  "sdl3-src",
+]
+
+[[package]]
+name = "self-replace"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03ec815b5eab420ab893f63393878d89c90fdd94c0bcc44c07abb8ad95552fb7"
+dependencies = [
+ "fastrand",
+ "tempfile",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

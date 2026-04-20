@@ -4,6 +4,7 @@
 page_screens = "Màn hình"
 page_rendering = "Kết xuất"
 page_inputs = "Đầu vào"
+page_outputs = "Đầu ra"
 page_tilt = "Nghiêng / Đẩy"
 page_audio = "Âm thanh"
 page_tables = "Bàn"
@@ -194,6 +195,34 @@ input_custom2 = "Tùy chỉnh #2 (mod bàn)"
 input_custom3 = "Tùy chỉnh #3 (mod bàn)"
 input_custom4 = "Tùy chỉnh #4 (mod bàn)"
 
+# Outputs page
+outputs_heading = "Đầu ra / Cấu hình DOF"
+outputs_desc = "VPX 10.8.1 standalone tích hợp libdof tự nhiên — không cần cài plugin bên ngoài. Bạn chỉ cần cung cấp cấu hình DOF mô tả phần cứng tủ của bạn (solenoid, LED, motor...). Dùng trình tạo trực tuyến VPUniverse để tạo, sau đó giải nén kết quả vào thư mục bên dưới."
+outputs_workflow_title = "Cách tạo cấu hình DOF của bạn"
+outputs_step1_account = "Tạo một tài khoản (miễn phí) trên VPUniverse ConfigTool."
+outputs_step2_table = "Trong công cụ, tạo một bàn mới tương ứng với tủ của bạn."
+outputs_step3_output_system = "Thêm hệ thống đầu ra cho bàn đó (Pinscape, LedWiz, PinOne, DudesCab, PacLed, TeensyStripController…)."
+outputs_step4_devices = "Kết nối các thiết bị của bạn với các đầu ra: solenoid, flasher, chiếu sáng GI, nút RGB, dải LED WS2812, shaker, knocker, đèn cảnh báo…"
+outputs_step5_generate = "Bấm Generate — công cụ tạo một tệp .zip chứa directoutputconfig51.ini, DirectOutputShapes.xml, tablemappings.xml, v.v."
+outputs_step6_extract = "Tải xuống và giải nén nội dung .zip trực tiếp vào thư mục đích bên dưới (các tệp nằm ở gốc của directoutputconfig/, không phải trong thư mục con)."
+outputs_devices_intro = "Các thiết bị có thể kết nối (không đầy đủ):"
+outputs_device_solenoids = "Solenoid (flipper, bumper, sling)"
+outputs_device_flashers = "Flasher"
+outputs_device_gi = "Chiếu sáng GI"
+outputs_device_rgb_buttons = "Nút RGB"
+outputs_device_rgb_strips = "Dải LED RGB WS2811/WS2812"
+outputs_device_shaker = "shaker (motor rung)"
+outputs_device_knocker = "knocker"
+outputs_device_beacon = "Đèn cảnh báo / strobe"
+outputs_device_gear = "Motor / quạt"
+outputs_generator_title = "Trình tạo trực tuyến"
+outputs_generator_desc = "Mở VPUniverse ConfigTool trong trình duyệt mặc định của bạn."
+outputs_open_generator = "Mở VPUniverse ConfigTool"
+outputs_target_title = "Thư mục đích trên máy này"
+outputs_target_desc = "Giải nén .zip do ConfigTool tạo vào thư mục này:"
+outputs_open_folder = "Mở thư mục trong trình quản lý tệp"
+outputs_folder_missing = "Thư mục chưa tồn tại — sẽ được tạo khi bạn bấm Mở."
+
 # Tilt page
 tilt_heading = "Độ nhạy Nghiêng / Đẩy"
 tilt_desc = "Cài đặt độ nhạy cho gia tốc kế (Pinscape / KL25Z)."
@@ -234,17 +263,59 @@ audio_ball_left_right = "Bóng Trái > Phải"
 audio_bottom_left = "Dưới Trái (SL)"
 audio_bottom_right = "Dưới Phải (SR)"
 audio_wiring_note = "Lưu ý: màu jack có thể khác nhau tùy card âm thanh!"
+audio_3jack_tip = "Card âm thanh có 3 jack (xanh lá / hồng / xanh dương)? Gán lại chúng thành 5.1 hoặc 7.1 bằng %{tool}."
+audio_3jack_tip_more_info = "chi tiết"
 audio_wiring_col_output = "Đầu ra jack"
 audio_wiring_col_channel = "Kênh"
 audio_wiring_col_connection = "Kết nối Pincab"
 audio_wiring_stereo_front = "Ngõ ra xanh lá (Front) -> Loa Backglass (nhạc)"
 audio_wiring_stereo_no_spatial = "Playfield: âm thanh phát từ cùng các loa, không có phân bố không gian"
+audio_wiring_51_front_top = "Ngõ ra xanh lá  (Front L/R) -> Exciter playfield phía trên (phía backglass)"
+audio_wiring_51_rear_bottom = "Ngõ ra đen    (Rear L/R)  -> Exciter playfield phía dưới (phía lockbar/người chơi)"
+audio_wiring_51_center_sub = "Ngõ ra cam   (Center/Sub) -> Subwoofer (tùy chọn)"
+audio_wiring_51_bg_separate = "Backglass trên một thiết bị âm thanh riêng"
+audio_wiring_51_front_bottom = "Ngõ ra xanh lá  (Front L/R) -> Exciter playfield phía dưới (phía lockbar/người chơi)"
+audio_wiring_51_rear_top = "Ngõ ra đen    (Rear L/R)  -> Exciter playfield phía trên (phía backglass)"
+audio_wiring_71_green = "Xanh lá (Front)"
+audio_wiring_71_green_ch = "FL / FR"
+audio_wiring_71_green_conn = "Loa Backglass (nhạc) hoặc hệ thống 2.1"
+audio_wiring_71_black = "Đen (Rear)"
+audio_wiring_71_black_ch = "BL / BR"
+audio_wiring_71_black_conn = "Exciter playfield phía trên (phía backglass)"
+audio_wiring_71_grey = "Xám (Side)"
+audio_wiring_71_grey_ch = "SL / SR"
+audio_wiring_71_grey_conn = "Exciter playfield phía dưới (phía lockbar/người chơi)"
+audio_wiring_71_orange = "Cam (Center/Sub)"
+audio_wiring_71_orange_ch = "FC / LFE"
+audio_wiring_71_orange_conn = "Subwoofer / Bass shaker (tùy chọn)"
 
 # Tables page
 tables_heading = "Thư mục bàn"
 tables_desc = "Chọn thư mục chứa các bàn VPX (mỗi bàn một thư mục)."
 tables_structure = "Cấu trúc mong đợi (thư mục-theo-bàn Visual Pinball 10.8):"
+tables_structure_tree = """
+Tables/
+└── Table Name/
+    ├── Table Name.vpx                <- tệp bàn (bắt buộc)
+    ├── Table Name.directb2s          <- backglass B2S (tùy chọn)
+    ├── Table Name.ini                <- ghi đè theo bàn (tùy chọn)
+    ├── Table Name.vbs                <- patch VBS / ghi đè script (tùy chọn)
+    ├── altsound/<rom>/               <- gói altsound (tùy chọn)
+    ├── pinmame/
+    │   ├── roms/<rom>.zip            <- PinMAME ROM (bắt buộc cho bàn có ROM)
+    │   └── nvram/<rom>.nv            <- dữ liệu lưu (tự động tạo)
+    ├── pupvideos/<rom>/              <- video PinUp Player (tùy chọn)
+    ├── serum/<rom>/<rom>.crz         <- tô màu DMD Serum (tùy chọn)
+    ├── vni/<rom>/<rom>.vni + .pal    <- tô màu DMD VNI (tùy chọn)
+    └── medias/                       <- media frontend (tùy chọn)"""
+tables_formats_supported = "ℹ Định dạng tô màu DMD được hỗ trợ: Serum (.crz) và VNI (.vni + .pal)."
+tables_formats_unsupported = " => Các định dạng độc quyền như .pac không được hỗ trợ."
 tables_modifiable = "Mọi cài đặt có thể thay đổi trong game qua F12."
+tables_tips_patch_desc = "Một số bàn cần patch VBS để chạy trên 10.8.1 standalone."
+tables_tips_webp_desc = "Bạn cũng có thể chuyển các ảnh PNG/BMP lớn sang WebP để giảm dung lượng bàn."
+tables_tips_info_here = "-> thông tin ở đây"
+tables_tips_patch_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
+tables_tips_webp_url = "https://github.com/Le-Syl21/PinReady#-table-preparation"
 tables_path = "Đường dẫn:"
 tables_browse = "Duyệt..."
 tables_folder_picker = "Chọn thư mục bàn"
