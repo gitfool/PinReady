@@ -299,8 +299,26 @@ impl App {
         self.launcher_cols = cols;
         let row_height = card_height + card_spacing;
 
+        // Boost line-based mouse wheel input so stronger wheel flicks scroll farther.
+        // Keep trackpad behavior untouched (trackpads usually report point deltas).
+        let line_wheel_strength: f32 = ui.input(|i| {
+            i.events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Line,
+                        delta,
+                        ..
+                    } => Some(delta.y.abs()),
+                    _ => None,
+                })
+                .sum()
+        });
+        let wheel_boost = (1.0 + line_wheel_strength * 1.25).clamp(1.0, 8.0);
+
         let mut scroll_area = egui::ScrollArea::vertical()
-            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            .wheel_scroll_multiplier(egui::vec2(1.0, wheel_boost));
 
         // Auto-scroll to selected table when navigating with joystick.
         // Keep the selected row centered in the viewport; clamp at start/end so
