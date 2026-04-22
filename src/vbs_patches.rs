@@ -304,23 +304,50 @@ fn encode_url(url: &str) -> String {
     format!("{scheme}{host}{encoded_path}{tail}")
 }
 
+/// Rewrite a byte buffer so every lone `\n` (not already preceded by
+/// `\r`) becomes `\r\n`. Single-pass, preserves existing CRLF.
+///
+/// Required because jsm174's `hashes.json` hashes are computed over
+/// the CRLF version of each `.vbs` file — the repo's `.gitattributes`
+/// has `*.vbs text eol=crlf`, so the Linux CI checkout materializes
+/// files as CRLF before `sha256sum` runs. GitHub's raw CDN however
+/// serves files as they are stored internally (LF), so without
+/// normalization our downloaded bytes never match the catalog's
+/// declared `patched.sha256`. As a bonus, the installed sidecar ends
+/// up in CRLF — the traditional, Windows-native format for `.vbs`.
+fn normalize_to_crlf(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len() + bytes.len() / 50);
+    let mut prev = 0u8;
+    for &b in bytes {
+        if b == b'\n' && prev != b'\r' {
+            out.push(b'\r');
+        }
+        out.push(b);
+        prev = b;
+    }
+    out
+}
+
 /// Download the patched `.vbs` from jsm174 + verify its SHA256 against
 /// `expected_sha`. Fails loudly (returns `Err`) on network failure or
 /// hash mismatch — callers must not write anything to disk in either
 /// case. Files on jsm174 are small (a few KB each), so we buffer the
-/// whole body in memory before hashing.
+/// whole body in memory before hashing. Bytes are normalized LF→CRLF
+/// before hashing so the SHA matches jsm174's catalog (see
+/// `normalize_to_crlf`).
 pub fn download_and_verify(url: &str, expected_sha: &str) -> Result<Vec<u8>> {
     let encoded = encode_url(url);
     let response = ureq::get(&encoded)
         .header("User-Agent", "PinReady")
         .call()
         .with_context(|| format!("Failed to GET {url}"))?;
-    let mut bytes = Vec::new();
+    let mut raw = Vec::new();
     response
         .into_body()
         .into_reader()
-        .read_to_end(&mut bytes)
+        .read_to_end(&mut raw)
         .context("Failed to read patched .vbs body")?;
+    let bytes = normalize_to_crlf(&raw);
     let got = sha256_hex(&bytes);
     if got != expected_sha {
         anyhow::bail!("Patched VBS SHA mismatch: expected {expected_sha}, got {got} (url: {url})");
@@ -514,6 +541,40 @@ mod tests {
     #[test]
     fn encode_url_no_path_is_passthrough() {
         assert_eq!(encode_url("https://example.com"), "https://example.com");
+    }
+
+    #[test]
+    fn normalize_to_crlf_adds_cr_before_lone_lf() {
+        assert_eq!(normalize_to_crlf(b"a\nb"), b"a\r\nb");
+        assert_eq!(normalize_to_crlf(b"line1\nline2\n"), b"line1\r\nline2\r\n");
+    }
+
+    #[test]
+    fn normalize_to_crlf_preserves_existing_crlf() {
+        assert_eq!(normalize_to_crlf(b"a\r\nb"), b"a\r\nb");
+        assert_eq!(
+            normalize_to_crlf(b"line1\r\nline2\r\n"),
+            b"line1\r\nline2\r\n"
+        );
+    }
+
+    #[test]
+    fn normalize_to_crlf_mixed_input() {
+        // Some \n, some \r\n — result is all \r\n.
+        assert_eq!(normalize_to_crlf(b"a\nb\r\nc\nd"), b"a\r\nb\r\nc\r\nd");
+    }
+
+    #[test]
+    fn normalize_to_crlf_no_newlines_passthrough() {
+        assert_eq!(normalize_to_crlf(b"abc"), b"abc");
+        assert_eq!(normalize_to_crlf(b""), b"");
+    }
+
+    #[test]
+    fn normalize_to_crlf_lone_cr_untouched() {
+        // A bare \r (classic Mac style, extremely rare) stays bare.
+        // Not something jsm174 produces; just a sanity check.
+        assert_eq!(normalize_to_crlf(b"a\rb"), b"a\rb");
     }
 
     #[test]
