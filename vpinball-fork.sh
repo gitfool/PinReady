@@ -22,6 +22,22 @@ set -euo pipefail
 UPSTREAM_REPO="vpinball/vpinball"
 UPSTREAM_BRANCH="master"
 
+# Upstream commits to revert from every sync. Use this to keep tracking
+# master (for fresh features / SDL3 fixes / X11 improvements) while rolling
+# back specific known-broken commits. Each entry must be a full SHA from
+# vpinball/vpinball@master.
+#
+# Revert order is blacklist order. If reverting any entry conflicts (a
+# later upstream commit touches the same code), sync bails with a clear
+# error — update the blacklist or drop the entry and pin instead.
+BLACKLIST=(
+    # dbd2a00 "BGFX: deprecate GLES option and remove fullscreen exclusive"
+    # Removed the FSE code path; on X11/Mutter the surviving borderless
+    # fullscreen path doesn't honor multi-monitor placement as reliably,
+    # and the cabinet PF window vanishes after the update.
+    "dbd2a00aaf32cedaae441f00f3de5a59b2218bb4"
+)
+
 # CI workflow files to patch (push -> workflow_dispatch)
 WORKFLOW_FILES=(
     ".github/workflows/vpinball.yml"
@@ -46,6 +62,76 @@ get_fork_repo() {
     local user
     user=$(gh api user --jq '.login') || die "Cannot get GitHub username. Is gh authenticated?"
     echo "${user}/${UPSTREAM_REPO#*/}"
+}
+
+# Apply the commit BLACKLIST as `git revert` commits on top of the fork's
+# master. Uses a throwaway local clone because GitHub's REST API can't do
+# revert server-side. Each revert is `--no-edit` for non-interactive use;
+# a conflict bails out loudly so the user updates the blacklist rather
+# than shipping a half-broken fork.
+#
+# Usage: apply_blacklist <fork_repo>
+# Preconditions: fork master is already reset to the target upstream SHA;
+# `gh auth setup-git` has been run at least once so git can push via the
+# gh-stored token (or the user has an SSH remote — we use HTTPS here).
+apply_blacklist() {
+    local fork_repo="$1"
+
+    if (( ${#BLACKLIST[@]} == 0 )); then
+        return 0
+    fi
+
+    info "Applying ${#BLACKLIST[@]} blacklisted revert(s) locally..."
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap "rm -rf ${tmpdir}" RETURN
+
+    # Shallow-ish clone — enough depth to reach every blacklisted commit.
+    # 500 covers roughly 3 months of upstream activity; bump if needed.
+    info "  Shallow-cloning ${fork_repo}..."
+    git clone --quiet --depth 500 \
+        "https://github.com/${fork_repo}.git" "${tmpdir}/repo" \
+        || die "Clone of fork failed"
+
+    # Keep commits we need to cherry-pick within reach: fetch upstream
+    # shallowly so blacklisted SHAs can be revert-applied (git revert
+    # needs both the commit and its parent).
+    (cd "${tmpdir}/repo" &&
+        git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" &&
+        git fetch --quiet --depth 500 upstream "${UPSTREAM_BRANCH}" &&
+        git config user.name "vpinball-fork.sh" &&
+        git config user.email "fork-bot@localhost") \
+        || die "Fork repo setup failed"
+
+    # Apply reverts. Each may ff-fail if upstream has since rewritten the
+    # same code — we abort the partial revert and bail so the user can
+    # update the blacklist deliberately.
+    for sha in "${BLACKLIST[@]}"; do
+        info "  Reverting ${sha:0:7}..."
+        if ! (cd "${tmpdir}/repo" && git cat-file -e "${sha}^{commit}" 2>/dev/null); then
+            info "    ${sha:0:7} not in fetched history — skipping (not yet in upstream?)"
+            continue
+        fi
+        # Also skip if the commit isn't an ancestor of our current HEAD
+        # (fork master may be pinned to before this SHA).
+        if ! (cd "${tmpdir}/repo" && git merge-base --is-ancestor "${sha}" HEAD 2>/dev/null); then
+            info "    ${sha:0:7} not in fork history — skipping"
+            continue
+        fi
+        if ! (cd "${tmpdir}/repo" && git revert --no-edit "${sha}" >/dev/null 2>&1); then
+            (cd "${tmpdir}/repo" && git revert --abort 2>/dev/null) || true
+            die "Revert of ${sha:0:7} conflicts with later upstream work. Drop it from BLACKLIST and use 'sync <older-sha>' to pin instead."
+        fi
+        info "    Reverted."
+    done
+
+    # Force-push back.
+    info "  Force-pushing reverted master to ${fork_repo}..."
+    (cd "${tmpdir}/repo" && git push --quiet --force origin "HEAD:${UPSTREAM_BRANCH}") \
+        || die "Push to fork failed — have you run 'gh auth setup-git'?"
+
+    info "  Blacklist applied."
 }
 
 # Wait for the most recent run of a workflow to complete (max ~30 min).
@@ -87,13 +173,22 @@ wait_for_workflow() {
 
 cmd_sync() {
     local fork_repo="$1"
+    local pin_sha="${2:-}"
 
     info "Syncing ${fork_repo} with ${UPSTREAM_REPO}/${UPSTREAM_BRANCH}..."
 
-    # Get upstream HEAD
+    # Get target SHA: either a user-pinned commit (to work around upstream
+    # regressions like dbd2a00 "remove fullscreen exclusive") or the
+    # current upstream HEAD.
     local upstream_sha
-    upstream_sha=$(gh api "repos/${UPSTREAM_REPO}/commits/${UPSTREAM_BRANCH}" --jq '.sha') \
-        || die "Cannot fetch upstream HEAD"
+    if [[ -n "$pin_sha" ]]; then
+        info "Pin mode: using explicit SHA ${pin_sha:0:7} instead of upstream HEAD"
+        upstream_sha=$(gh api "repos/${UPSTREAM_REPO}/commits/${pin_sha}" --jq '.sha') \
+            || die "Cannot resolve pinned SHA ${pin_sha} on ${UPSTREAM_REPO}"
+    else
+        upstream_sha=$(gh api "repos/${UPSTREAM_REPO}/commits/${UPSTREAM_BRANCH}" --jq '.sha') \
+            || die "Cannot fetch upstream HEAD"
+    fi
     local upstream_short="${upstream_sha:0:7}"
 
     # Force-reset fork master to upstream
@@ -102,6 +197,12 @@ cmd_sync() {
         --method PATCH --input - <<EOF >/dev/null
 {"sha": "${upstream_sha}", "force": true}
 EOF
+
+    # Apply the blacklist — reverts of specific upstream commits we want
+    # to keep out of our builds. Runs BEFORE the CI patches so the revert
+    # commits are part of the "code" history, and the CI-only patches sit
+    # on top (separate, easy to rebase if anything goes wrong).
+    apply_blacklist "${fork_repo}"
 
     # Apply CI patches: change "push:" trigger to "workflow_dispatch:"
     for workflow in "${WORKFLOW_FILES[@]}"; do
@@ -286,16 +387,30 @@ main() {
     local action="${1:-}"
 
     if [[ -z "$action" ]]; then
-        echo "Usage: $0 {sync|release|status}"
+        echo "Usage: $0 {sync [SHA]|release|status}"
         echo ""
-        echo "  sync      Sync fork with upstream, patch CI, trigger builds"
-        echo "  release   Wait for builds, create GitHub Release with all artifacts"
-        echo "  status    Show recent workflow runs and latest release"
+        echo "  sync [SHA]    Sync fork with upstream, patch CI, trigger builds."
+        echo "                Optional SHA pins the fork to a specific upstream"
+        echo "                commit (accepts '<sha>^' for parent) — useful to"
+        echo "                roll back a breaking upstream change."
+        echo "  release       Wait for builds, create GitHub Release with all artifacts"
+        echo "  status        Show recent workflow runs and latest release"
         exit 1
     fi
 
     command -v gh >/dev/null 2>&1 || die "'gh' CLI not found. Install from https://cli.github.com"
     command -v jq >/dev/null 2>&1 || die "'jq' not found. Install with: sudo apt install jq"
+    # git + a gh-credential-helper hookup are only strictly required when
+    # BLACKLIST is non-empty (the revert-and-push step), but checking
+    # upfront gives a clearer error than a mid-run failure.
+    if (( ${#BLACKLIST[@]} > 0 )); then
+        command -v git >/dev/null 2>&1 || die "'git' not found. Install with: sudo apt install git"
+        # Verify `gh auth setup-git` has been run, otherwise the force-push
+        # inside apply_blacklist will prompt interactively for credentials.
+        if ! git config --global --get-regexp '^credential\..*helper$' | grep -q 'gh'; then
+            info "Note: run 'gh auth setup-git' once so blacklist pushes don't hang on auth."
+        fi
+    fi
 
     local fork_repo
     fork_repo=$(get_fork_repo)
@@ -303,10 +418,10 @@ main() {
     echo ""
 
     case "$action" in
-        sync)    cmd_sync "$fork_repo" ;;
+        sync)    cmd_sync "$fork_repo" "${2:-}" ;;
         release) cmd_release "$fork_repo" ;;
         status)  cmd_status "$fork_repo" ;;
-        *)       die "Unknown action: ${action}. Use: sync, release, or status" ;;
+        *)       die "Unknown action: ${action}. Use: sync [SHA], release, or status" ;;
     esac
 }
 
