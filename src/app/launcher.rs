@@ -244,6 +244,16 @@ impl App {
     /// results via `vbs_rx` and folds them into the `vbs_patches`
     /// table in `process_vbs_extraction`.
     fn scan_vbs_patches(&mut self, dir_path: &std::path::Path) {
+        // Opt-in: user has to enable auto-patching explicitly from the
+        // Tables wizard page. Default is off because the jsm174 catalog
+        // occasionally ships patches with regressions (e.g. Apollo 13
+        // needs an additional `vpmInit Me` fix on top of their patch —
+        // see vpinball/vpinball#1536, #1650).
+        if !self.db.jsm174_patching_enabled() {
+            log::debug!("vbs_patches: jsm174 auto-patching is disabled — skipping");
+            return;
+        }
+
         // Refresh the jsm174 catalog if upstream master has moved.
         // Non-fatal on network error — falls back to cached catalog.
         if let Err(e) = crate::vbs_patches::refresh_catalog_if_stale(&self.db) {

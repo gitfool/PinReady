@@ -338,6 +338,25 @@ impl Database {
         Ok(())
     }
 
+    /// Is auto VBS patching from jsm174/vpx-standalone-scripts enabled?
+    /// Opt-in (default `false`) because the remote catalog occasionally
+    /// ships patches that clobber inputs on specific tables — users
+    /// should enable it deliberately once they understand the trade-off.
+    pub fn jsm174_patching_enabled(&self) -> bool {
+        matches!(
+            self.get_config("jsm174_patching_enabled").as_deref(),
+            Some("true")
+        )
+    }
+
+    /// Persist the opt-in state.
+    pub fn set_jsm174_patching_enabled(&self, enabled: bool) -> Result<()> {
+        self.set_config(
+            "jsm174_patching_enabled",
+            if enabled { "true" } else { "false" },
+        )
+    }
+
     /// Get the tables root directory.
     pub fn get_tables_dir(&self) -> Option<String> {
         self.get_config("tables_dir")

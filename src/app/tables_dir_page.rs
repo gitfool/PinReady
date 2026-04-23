@@ -97,13 +97,24 @@ impl App {
         ui.separator();
         ui.add_space(8.0);
 
-        // VBS patch auto-apply notice — explains that we silently
-        // install sidecar scripts from jsm174/vpx-standalone-scripts at
-        // scan time, and that any pre-existing custom sidecar is
-        // backed up as .pre_standalone.vbs before the patch lands.
+        // VBS patch opt-in. Behaviour is explicitly off by default
+        // because jsm174's catalog occasionally ships patches that
+        // regress specific tables (e.g. Apollo 13 inputs — needs an
+        // extra vpmInit Me fix that isn't upstream yet). When the user
+        // flips the toggle we persist to config immediately so a
+        // subsequent scan picks up the new state on the next Rebuild.
         ui.label(egui::RichText::new(t!("tables_vbs_patch_title")).strong());
         ui.add_space(4.0);
         ui.label(t!("tables_vbs_patch_desc"));
+        ui.add_space(6.0);
+        if ui
+            .checkbox(&mut self.jsm174_patching, t!("tables_vbs_patch_toggle"))
+            .changed()
+        {
+            if let Err(e) = self.db.set_jsm174_patching_enabled(self.jsm174_patching) {
+                log::error!("Failed to persist jsm174_patching_enabled: {e}");
+            }
+        }
         ui.add_space(4.0);
         ui.colored_label(
             egui::Color32::from_rgb(200, 180, 100),
